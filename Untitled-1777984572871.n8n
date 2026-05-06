@@ -1,0 +1,43 @@
+{
+  "updatedAt": "2026-05-05T12:51:20.111Z",
+  "createdAt": "2026-05-05T12:36:13.564Z",
+  "id": "0Fm4GDw5f5JY38EL",
+  "name": "Bot CTI WTP",
+  "description": null,
+  "active": false,
+  "isArchived": false,
+  "nodes": [],
+  "connections": {},
+  "settings": {
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": {},
+  "versionId": "595127cd-31a9-4990-ae06-24f810090d8d",
+  "activeVersionId": null,
+  "versionCounter": 3,
+  "triggerCount": 0,
+  "shared": [
+    {
+      "updatedAt": "2026-05-05T12:36:13.568Z",
+      "createdAt": "2026-05-05T12:36:13.568Z",
+      "role": "workflow:owner",
+      "workflowId": "0Fm4GDw5f5JY38EL",
+      "projectId": "5mXCWpZft7aN7GNu",
+      "project": {
+        "updatedAt": "2026-03-11T15:54:03.824Z",
+        "createdAt": "2026-03-11T15:22:30.703Z",
+        "id": "5mXCWpZft7aN7GNu",
+        "name": "Ticketera  MCTI <ticketeramcti@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "2de5f533-fe1a-4481-95cb-23de3bc8ddf4"
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": null
+}

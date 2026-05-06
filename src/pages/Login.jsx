@@ -103,7 +103,7 @@ export default function Login() {
                         Ticketera CTI
                     </h1>
                     <p className="text-blue-100 text-lg font-medium leading-relaxed max-w-md mx-auto">
-                        El sistema inteligente de gestión de tareas. Autentícate para acceder a tus tableros de Soporte Técnico y Telefonía.
+                        El sistema de gestión de tareas de Informática - Delegación III
                     </p>
                 </div>
             </div>

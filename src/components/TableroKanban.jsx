@@ -6,6 +6,28 @@ import { useAuth } from '../context/AuthContext';
 const COLUMNAS_BASE = ['Solicitud', 'En proceso', 'En espera', 'Resuelto'];
 const DEPARTAMENTOS = ['Soporte Técnico', 'Telefonía'];
 
+// Configuración de Webhook para N8N
+const WEBHOOK_N8N_URL = 'http://localhost:5678/webhook-test/3406573f-0d56-4029-b042-fa5a9b74cc3d'; // URL oficial de n8n proporcionada por el usuario
+
+// Utilidad para notificar a N8N
+const notificarN8n = async (evento, ticket) => {
+  if (!WEBHOOK_N8N_URL || WEBHOOK_N8N_URL.includes('tu-servidor.com')) return;
+
+  try {
+    fetch(WEBHOOK_N8N_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        evento,
+        fecha: new Date().toISOString(),
+        ticket
+      })
+    });
+  } catch (err) {
+    console.error("Error enviando webhook a n8n:", err);
+  }
+};
+
 // Utilidad para colores de prioridad
 const getPrioridadColor = (prioridad) => {
   switch (prioridad) {
@@ -228,6 +250,7 @@ export default function TableroKanban() {
   const [subiendoArchivo, setSubiendoArchivo] = useState(false);
   const fileInputRef = useRef(null);
   const mensajesEndRef = useRef(null);
+  const [modalMandatorioOpen, setModalMandatorioOpen] = useState(false);
 
   // Notificaciones
   const [notificaciones, setNotificaciones] = useState([]);
@@ -300,6 +323,7 @@ export default function TableroKanban() {
       alert("Contraseña cambiada exitosamente.");
       setPasswordForm({ nueva: '', confirmar: '' });
       setModalPerfilOpen(false);
+      setModalMandatorioOpen(false);
     }
   };
 
@@ -313,12 +337,13 @@ export default function TableroKanban() {
     nombre: '', dependencia: '', piso: '', rol: 'Soporte Tecnico'
   });
   const [rolesEditados, setRolesEditados] = useState({});
+  const [nombresEditados, setNombresEditados] = useState({});
 
   // 🌙 Dark Mode State (4 modes: light, blue, dark, wallpaper)
   const [themeMode, setThemeMode] = useState(() => {
     const saved = localStorage.getItem('themeMode');
     if (saved) return saved; // 'light', 'blue', 'dark', or 'wallpaper'
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'blue' : 'light';
+    return 'light';
   });
 
   // 🖼️ Wallpaper state
@@ -337,12 +362,12 @@ export default function TableroKanban() {
     { id: 'aurora', label: 'Aurora Boreal', thumb: '/wallpapers/thumbs/aurora.jpg', url: '/wallpapers/aurora.jpg' },
     { id: 'bosque', label: 'Bosque', thumb: '/wallpapers/thumbs/bosque.jpg', url: '/wallpapers/bosque.jpg' },
     { id: 'desierto', label: 'Desierto', thumb: '/wallpapers/thumbs/desierto.jpg', url: '/wallpapers/desierto.jpg' },
-    { id: 'galaxia', label: 'Galaxia', thumb: '/wallpapers/thumbs/galaxia.jpg', url: '/wallpapers/galaxia.jpg' },
+    { id: 'galaxia', label: 'Galaxia', thumb: '/wallpapers/galaxia.jpg?v=3', url: '/wallpapers/galaxia.jpg?v=3' },
     { id: 'cascada', label: 'Cascada', thumb: '/wallpapers/thumbs/cascada.jpg', url: '/wallpapers/cascada.jpg' },
     { id: 'playa', label: 'Playa', thumb: '/wallpapers/thumbs/playa.jpg', url: '/wallpapers/playa.jpg' },
     { id: 'nyc', label: 'New York', thumb: '/wallpapers/thumbs/nyc.jpg', url: '/wallpapers/nyc.jpg' },
     { id: 'tokyo', label: 'Tokyo', thumb: '/wallpapers/thumbs/tokyo.jpg', url: '/wallpapers/tokyo.jpg' },
-    { id: 'paris', label: 'Paris', thumb: '/wallpapers/thumbs/paris.jpg', url: '/wallpapers/paris.jpg' },
+    { id: 'paris', label: 'Paris', thumb: '/wallpapers/paris.jpg?v=3', url: '/wallpapers/paris.jpg?v=3' },
     { id: 'dubai', label: 'Dubai', thumb: '/wallpapers/thumbs/dubai.jpg', url: '/wallpapers/dubai.jpg' },
     { id: 'noche', label: 'Noche', thumb: '/wallpapers/thumbs/noche.jpg', url: '/wallpapers/noche.jpg' },
     { id: 'mardelplata', label: 'Mar del Plata', thumb: '/wallpapers/thumbs/mardelplata.jpg', url: '/wallpapers/mardelplata.jpg' },
@@ -378,6 +403,7 @@ export default function TableroKanban() {
           const data = await res.json();
           if (data.access_token) {
             setTienePasswordDefault(true);
+            setModalMandatorioOpen(true);
             sessionStorage.setItem('has_pwd_warning_' + user.id, '1');
           } else {
             setTienePasswordDefault(false);
@@ -650,6 +676,9 @@ export default function TableroKanban() {
         .eq('id', ticketToMove.id);
 
       if (error) throw error;
+
+      // Notificar a N8N del movimiento
+      notificarN8n('ticket_movido', { ...ticketToMove, estado_nuevo: estadoNuevo });
     } catch (error) {
       console.error('Error moviendo ticket, haciendo rollback:', error);
       ticketToMove.estado = estadoPrevio;
@@ -720,7 +749,7 @@ export default function TableroKanban() {
     } else if (eOrConfig && typeof eOrConfig === 'object') {
       configToUse = eOrConfig;
     }
-    
+
     const { id, titulo, descripcion, area, prioridad, responsables, departamento, solicitante, seccion_solicitante } = configToUse;
     const responsable = responsables.length > 0 ? responsables.join(', ') : '';
 
@@ -780,6 +809,9 @@ export default function TableroKanban() {
         } else {
           setTickets(prev => [data[0], ...prev]);
         }
+
+        // Notificar a N8N (Creación o Edición)
+        notificarN8n(id ? 'ticket_editado' : 'ticket_creado', data[0]);
       }
     } else {
       console.error('Error al crear ticket', error);
@@ -906,6 +938,26 @@ export default function TableroKanban() {
     }
   };
 
+  // 5c. Editar Nombre de Usuario
+  const handleEditarNombreUsuario = async (userId, nuevoNombre) => {
+    if (!nuevoNombre || !nuevoNombre.trim()) return;
+    const nombreLimpio = nuevoNombre.trim();
+    // Optimistic UI Update
+    setUsuarios(prev => prev.map(u => u.id === userId ? { ...u, nombre: nombreLimpio } : u));
+    setNombresEditados(prev => { const temp = { ...prev }; delete temp[userId]; return temp; });
+
+    const { error } = await supabase
+      .from('usuarios')
+      .update({ nombre: nombreLimpio })
+      .eq('id', userId);
+
+    if (error) {
+      console.error('Error al actualizar el nombre', error);
+      alert('Error al guardar el nuevo nombre en la base de datos.');
+      fetchData();
+    }
+  };
+
   // 6. Eliminar Ticket
   const handleEliminarTicket = async () => {
     if (!ticketAEliminar) return;
@@ -951,18 +1003,12 @@ export default function TableroKanban() {
             <h1 className="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-[#065E94] to-[#043d63] dark:bg-none dark:text-white tracking-tight">
               Ticketera CTI
             </h1>
-            <p className="text-sm text-slate-500 dark:text-neutral-400 font-medium flex items-center gap-2">
-              <span className="relative flex h-2.5 w-2.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500 dark:bg-emerald-500"></span>
-              </span>
-              Sincronización Realtime activa
-            </p>
+
           </div>
 
           <div className="flex-1 max-w-md mx-auto relative group">
-            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-              <svg className="w-4 h-4 text-slate-400 group-focus-within:text-[#065E94] transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none z-10">
+              <svg className="w-4 h-4 text-slate-600 dark:text-neutral-400 group-focus-within:text-[#065E94] transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
             </div>
@@ -975,7 +1021,7 @@ export default function TableroKanban() {
                 setShowSearchDropdown(true);
               }}
               onFocus={() => setShowSearchDropdown(true)}
-              className="w-full bg-white/60 dark:bg-[var(--bg-secondary)]/50 border border-white/80 dark:border-[var(--border-accent)] backdrop-blur-md dark:backdrop-blur-none rounded-2xl py-2.5 pl-11 pr-4 text-sm font-semibold text-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-[#065E94]/30 dark:focus:ring-blue-500/30 transition-all placeholder:text-slate-400 dark:placeholder:text-neutral-500 shadow-sm"
+              className="w-full bg-white/60 dark:bg-[var(--bg-secondary)]/70 border border-white/80 dark:border-[var(--border-accent)] backdrop-blur-md rounded-2xl py-2.5 pl-11 pr-4 text-sm font-semibold text-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-[#065E94]/30 dark:focus:ring-blue-500/30 transition-all placeholder:text-slate-500 dark:placeholder:text-neutral-300 shadow-sm"
             />
 
             {/* Menú de Búsqueda Avanzada (Estilo Trello) */}
@@ -989,12 +1035,14 @@ export default function TableroKanban() {
                   <div className="max-h-[400px] overflow-y-auto custom-scrollbar">
                     {(() => {
                       const term = busqueda.toLowerCase().trim();
-                      const filtered = tickets.filter(t =>
-                        t.titulo?.toLowerCase().includes(term) ||
-                        t.solicitante?.toLowerCase().includes(term) ||
-                        t.responsable?.toLowerCase().includes(term) ||
-                        t.id?.toString().includes(term)
-                      ).slice(0, 8);
+                      const filtered = tickets.filter(t => {
+                        const dateStr = t.fecha_creacion ? new Date(t.fecha_creacion).toLocaleDateString() : '';
+                        return t.titulo?.toLowerCase().includes(term) ||
+                          t.solicitante?.toLowerCase().includes(term) ||
+                          t.responsable?.toLowerCase().includes(term) ||
+                          t.id?.toString().includes(term) ||
+                          dateStr.includes(term);
+                      }).slice(0, 8);
 
                       if (filtered.length === 0) {
                         return (
@@ -1152,11 +1200,7 @@ export default function TableroKanban() {
                   className="hidden md:flex items-center gap-3 bg-white/80 dark:bg-[var(--bg-secondary)] px-4 py-2.5 rounded-xl border border-blue-100 dark:border-[var(--border-accent)] shadow-[0_4px_15px_-3px_rgba(6,94,148,0.15)] dark:shadow-none hover:-translate-y-1 transition-all duration-300 hover:bg-blue-50 dark:hover:bg-[var(--bg-hover)] mr-2 relative"
                   title="Ver perfil y contraseña"
                 >
-                  {tienePasswordDefault && (
-                    <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-white shadow-[0_0_10px_rgba(245,158,11,0.6)] z-10" title="Contraseña insegura (Cti1234) detectada.">
-                      <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-                    </span>
-                  )}
+
                   <div className="w-6 h-6 rounded-full bg-blue-100 dark:bg-[var(--bg-secondary)] text-[#065E94] dark:text-neutral-300 font-bold flex items-center justify-center text-[10px]">
                     {getInicial(usuarios.find(u => u.id === user.id)?.nombre || user?.email)}
                   </div>
@@ -1183,7 +1227,7 @@ export default function TableroKanban() {
 
             <button
               onClick={() => {
-                if (user?.rol === 'Administrador') {
+                if (user?.rol === 'Administrador' || user?.rol === 'Jefe de Departamento') {
                   setFormConfig({ id: null, titulo: '', descripcion: '', area: '', prioridad: 'Media', responsables: [], departamento: departamentoActivo, solicitante: '', seccion_solicitante: '' });
                 }
                 setModalUsuariosOpen(true);
@@ -1224,9 +1268,9 @@ export default function TableroKanban() {
             <button
               key={dep}
               onClick={() => setDepartamentoActivo(dep)}
-              className={`pb-4 px-2 text-lg font-bold transition-all relative whitespace-nowrap ${departamentoActivo === dep
-                ? 'text-[#065E94] dark:text-blue-400'
-                : 'text-slate-400 dark:text-neutral-400 hover:text-[#043d63] dark:hover:text-neutral-200'
+              className={`pb-4 px-2 text-lg font-bold transition-all relative whitespace-nowrap [html.theme-wallpaper_&]:drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] ${departamentoActivo === dep
+                ? 'text-[#065E94] dark:text-blue-300'
+                : 'text-slate-400 dark:text-neutral-300 hover:text-[#043d63] dark:hover:text-white'
                 }`}
             >
               <div className="flex items-center gap-2">
@@ -1266,15 +1310,25 @@ export default function TableroKanban() {
                       className={`flex-1 overflow-y-auto min-h-[150px] space-y-3.5 px-2 pb-6 pt-1 transition-colors duration-300 ${snapshot.isDraggingOver ? 'bg-blue-50/50 dark:bg-[var(--bg-secondary)]/50 rounded-2xl ring-2 ring-[#065E94]/30 dark:ring-[var(--border-accent)] shadow-inner dark:shadow-none' : ''
                         }`}
                     >
-                      {columnasData[columnId].map((ticket, index) => (
-                        <TicketCard
-                          key={ticket.id}
-                          ticket={ticket}
-                          index={index}
-                          onClick={handleTicketClick}
-                          isReadOnly={user?.rol === 'Director' || user?.rol === 'Visualizador'}
-                        />
-                      ))}
+                      {columnasData[columnId].length === 0 && !snapshot.isDraggingOver ? (
+                        <div className="h-[200px] flex flex-col items-center justify-center p-6 text-center rounded-xl border-2 border-dashed border-slate-300 dark:border-[var(--border-accent)]/40 bg-slate-100/50 dark:bg-black/20 m-2 transition-colors">
+                          <svg className="w-10 h-10 mb-3 text-slate-400 dark:text-slate-500 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                          </svg>
+                          <p className="text-sm font-bold text-slate-500 dark:text-neutral-400">Columna vacía</p>
+                          <p className="text-xs font-medium text-slate-400 dark:text-neutral-500 mt-1">Arrastra tickets aquí</p>
+                        </div>
+                      ) : (
+                        columnasData[columnId].map((ticket, index) => (
+                          <TicketCard
+                            key={ticket.id}
+                            ticket={ticket}
+                            index={index}
+                            onClick={handleTicketClick}
+                            isReadOnly={user?.rol === 'Director' || user?.rol === 'Visualizador'}
+                          />
+                        ))
+                      )}
                       {provided.placeholder}
                       {/* Personalización visual del placeholder (el espacio vacío que deja el ticket al arrastrarse) */}
                       {snapshot.isDraggingOver && provided.placeholder && (
@@ -1365,32 +1419,32 @@ export default function TableroKanban() {
           className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-[60] p-4"
           onClick={(e) => { if (e.target === e.currentTarget) setWallpaperModalOpen(false); }}
         >
-          <div className="bg-[#1a1a2e]/95 backdrop-blur-2xl border border-white/10 rounded-3xl shadow-[0_30px_80px_rgba(0,0,0,0.6)] w-full max-w-lg p-6 animate-in zoom-in-95 duration-300">
+          <div className="bg-[#1a1a2e]/95 backdrop-blur-2xl border border-white/10 rounded-3xl shadow-[0_30px_80px_rgba(0,0,0,0.6)] w-full max-w-4xl p-8 animate-in zoom-in-95 duration-300">
             {/* Header */}
-            <div className="flex justify-between items-center mb-5">
+            <div className="flex justify-between items-center mb-6">
               <div>
-                <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                  <span>🖼️</span> Fondo de pantalla
+                <h2 className="text-2xl font-bold text-white flex items-center gap-3">
+                  <span className="text-3xl">🖼️</span> Fondo de pantalla
                 </h2>
-                <p className="text-xs text-white/50 mt-0.5 uppercase tracking-widest">Elegí un fondo</p>
+                <p className="text-sm text-white/50 mt-1 uppercase tracking-widest">Elegí un fondo</p>
               </div>
               <button
                 onClick={() => setWallpaperModalOpen(false)}
-                className="text-white/40 hover:text-white/80 transition-colors bg-white/10 hover:bg-white/20 p-2 rounded-full"
+                className="text-white/40 hover:text-white/80 transition-colors bg-white/10 hover:bg-white/20 p-2.5 rounded-full"
               >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
 
             {/* Grid */}
-            <div className="grid grid-cols-3 gap-3 max-h-[420px] overflow-y-auto pr-1 custom-scrollbar">
+            <div className="grid grid-cols-3 gap-6 max-h-[600px] overflow-y-auto p-5 custom-scrollbar">
               {WALLPAPERS.map(wp => (
                 <button
                   key={wp.id}
                   onClick={() => { setActiveWallpaper(wp.id); }}
-                  className={`relative rounded-2xl overflow-hidden aspect-video group transition-all duration-200 ${activeWallpaper === wp.id
-                    ? 'ring-2 ring-cyan-400 ring-offset-2 ring-offset-[#1a1a2e] scale-[1.03]'
-                    : 'hover:scale-[1.02] hover:ring-2 hover:ring-white/30'
+                  className={`relative rounded-2xl overflow-hidden aspect-video group transition-all duration-300 ${activeWallpaper === wp.id
+                    ? 'ring-4 ring-cyan-400 ring-offset-4 ring-offset-[#1a1a2e] scale-[1.02]'
+                    : 'hover:scale-[1.03] hover:ring-2 hover:ring-white/30'
                     }`}
                 >
                   {wp.thumb ? (
@@ -1404,17 +1458,18 @@ export default function TableroKanban() {
                     />
                   ) : (
                     <div className="w-full h-full bg-white/5 border-2 border-dashed border-white/20 flex flex-col items-center justify-center text-white/40">
-                      <span className="text-2xl">🚫</span>
+                      <span className="text-3xl mb-2">🚫</span>
+                      <span className="text-sm font-semibold">Sin Fondo</span>
                     </div>
                   )}
                   {/* Label overlay */}
-                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-2 py-1.5">
-                    <span className="text-[11px] font-semibold text-white">{wp.label}</span>
+                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent px-4 py-3">
+                    <span className="text-sm font-bold text-white">{wp.label}</span>
                   </div>
                   {/* Selected check */}
                   {activeWallpaper === wp.id && (
-                    <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-cyan-400 flex items-center justify-center shadow-lg">
-                      <svg className="w-3 h-3 text-[#1a1a2e]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+                    <div className="absolute top-3 right-3 w-8 h-8 rounded-full bg-cyan-400 flex items-center justify-center shadow-lg">
+                      <svg className="w-5 h-5 text-[#1a1a2e]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
                     </div>
                   )}
                 </button>
@@ -1464,17 +1519,12 @@ export default function TableroKanban() {
 
             <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200 mb-3 border-b border-slate-200 dark:border-[var(--border-accent)] pb-2 flex items-center justify-between">
               <span className="flex items-center gap-2">Cambiar Contraseña</span>
-              {tienePasswordDefault && (
-                <span className="flex items-center gap-1 text-[10px] text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/30 px-2 py-0.5 rounded-md border border-amber-300 dark:border-amber-800/50" title="Sigues usando la contraseña predeterminada Cti1234.">
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-                  Debes actualizarla
-                </span>
-              )}
+
             </h3>
             <form onSubmit={handleCambiarPassword} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-500 dark:text-neutral-400 uppercase tracking-widest mb-1.5">Nueva Contraseña</label>
-                <input required minLength={6} type="password" value={passwordForm.nueva} onChange={e => setPasswordForm({ ...passwordForm, nueva: e.target.value })} className="w-full bg-white border border-slate-200 dark:border-[var(--border-accent)] dark:bg-[var(--bg-main)] dark:text-white rounded-xl p-3 text-sm focus:ring-2 focus:ring-[#065E94]/50 outline-none transition-all" placeholder="Requerido al acceder con Cti1234" />
+                <input required minLength={6} type="password" value={passwordForm.nueva} onChange={e => setPasswordForm({ ...passwordForm, nueva: e.target.value })} className="w-full bg-white border border-slate-200 dark:border-[var(--border-accent)] dark:bg-[var(--bg-main)] dark:text-white rounded-xl p-3 text-sm focus:ring-2 focus:ring-[#065E94]/50 outline-none transition-all" placeholder="Mínimo 6 caracteres" />
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-500 dark:text-neutral-400 uppercase tracking-widest mb-1.5">Confirmar Nueva Contraseña</label>
@@ -1501,7 +1551,7 @@ export default function TableroKanban() {
               </button>
             </div>
 
-            <TicketForm 
+            <TicketForm
               initialConfig={formConfig}
               onSubmit={handleCrearTicket}
               onCancel={() => setModalOpen(false)}
@@ -1515,12 +1565,12 @@ export default function TableroKanban() {
       {/* Modal - Gestión de Usuarios (Glassmorphism) */}
       {modalUsuariosOpen && (
         <div className="fixed inset-0 bg-slate-900/20 dark:bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4 opacity-100 transition-opacity animate-in fade-in duration-300" onClick={(e) => { if (e.target === e.currentTarget) setModalUsuariosOpen(false) }}>
-          <div className="bg-white/90 dark:bg-[var(--bg-secondary)] backdrop-blur-2xl dark:backdrop-blur-none rounded-[28px] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] dark:shadow-none w-full max-w-2xl p-8 border border-white/60 dark:border-[var(--border-accent)] flex flex-col md:flex-row gap-8 animate-in zoom-in-95 duration-300">
+          <div className="bg-white/90 dark:bg-[var(--bg-secondary)] backdrop-blur-2xl dark:backdrop-blur-none rounded-[28px] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] dark:shadow-none w-full max-w-4xl p-10 border border-white/60 dark:border-[var(--border-accent)] flex flex-col md:flex-row gap-12 animate-in zoom-in-95 duration-300">
             {/* Formulario Izquierda (Solo Admin) */}
-            {user?.rol === 'Administrador' && (
+            {(user?.rol === 'Administrador' || user?.rol === 'Jefe de Departamento') && (
               <div className="flex-1">
                 <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-6 bg-clip-text text-transparent bg-gradient-to-r from-[#065E94] to-[#043d63] dark:from-[#2a83bd] dark:to-[#4ea8de]">Gestión de Usuarios</h2>
-                <form onSubmit={handleCrearUsuario} className="space-y-4">
+                <form onSubmit={handleCrearUsuario} className="space-y-5">
                   <div>
                     <label className="block text-xs font-bold text-slate-500 dark:text-neutral-400 uppercase tracking-widest mb-2">Nombre Completo</label>
                     <input required autoFocus type="text" value={formUsuario.nombre} onChange={e => setFormUsuario({ ...formUsuario, nombre: e.target.value })} className="w-full bg-white/50 dark:bg-[var(--bg-main)] border border-slate-200/60 dark:border-[var(--border-accent)] dark:text-white rounded-xl p-3.5 text-sm focus:ring-2 focus:ring-[#065E94]/50 outline-none transition-all shadow-sm dark:shadow-none" placeholder="Ej. Juan Pérez" />
@@ -1549,6 +1599,7 @@ export default function TableroKanban() {
                       <option value="Soporte Tecnico">Soporte Técnico (Solo Panel Soporte)</option>
                       <option value="Director">Director (Ver todo / No crear ni mover)</option>
                       <option value="Visualizador">Visualizador (Ver todo / No crear ni mover)</option>
+                      <option value="Jefe de Departamento">Jefe de Departamento (Acceso Total)</option>
                     </select>
                   </div>
 
@@ -1572,26 +1623,51 @@ export default function TableroKanban() {
 
             {/* Lista Derecha */}
             {/* Lista Derecha */}
-            <div className={`flex flex-col h-[400px] ${user?.rol === 'Administrador' ? 'flex-1 border-t md:border-t-0 md:border-l border-slate-200/60 dark:border-[var(--border-accent)] pt-6 md:pt-0 md:pl-6' : 'w-full'}`}>
-              <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-2 bg-clip-text text-transparent bg-gradient-to-r from-[#065E94] to-[#043d63] dark:bg-none tracking-tight">{user?.rol === 'Administrador' ? `Usuarios (${usuarios.length})` : 'Directorio Escolar'}</h2>
-              {user?.rol !== 'Administrador' && <p className="text-sm text-slate-500 dark:text-neutral-400 mb-6">Lista de contactos y miembros de la plataforma.</p>}
-              <div className="flex-1 overflow-y-auto overscroll-contain pr-2 space-y-2 custom-scrollbar">
+            <div className={`flex flex-col h-[500px] ${(user?.rol === 'Administrador' || user?.rol === 'Jefe de Departamento') ? 'flex-[1.2] border-t md:border-t-0 md:border-l border-slate-200/60 dark:border-[var(--border-accent)] pt-6 md:pt-0 md:pl-8' : 'w-full'}`}>
+              <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-1 bg-clip-text text-transparent bg-gradient-to-r from-[#065E94] to-[#043d63] dark:bg-none tracking-tight">Directorio</h2>
+              <p className="text-sm text-slate-500 dark:text-neutral-400 mb-6">Lista de miembros</p>
+              <div className="flex-1 overflow-y-auto overscroll-contain pr-2 space-y-3 custom-scrollbar">
                 {usuarios.length === 0 ? (
                   <p className="text-sm text-slate-400 dark:text-slate-500 text-center mt-10">No hay usuarios registrados</p>
                 ) : (
                   usuarios.map(u => (
-                    <div key={u.id} className="bg-slate-50/80 dark:bg-[var(--bg-secondary)] p-3 rounded-xl border border-slate-100 dark:border-[var(--border-accent)] flex items-center justify-between gap-2 group">
+                    <div key={u.id} className="bg-slate-50/80 dark:bg-[var(--bg-secondary)] p-4 rounded-2xl border border-slate-100 dark:border-[var(--border-accent)] flex items-center justify-between gap-4 group transition-all hover:bg-white dark:hover:bg-white/[0.03]">
                       <div className="flex flex-col gap-0.5">
                         <span className="font-bold text-slate-700 dark:text-white text-sm flex items-center gap-2">
-                          {u.nombre}
+                          {(user?.rol === 'Administrador' || user?.rol === 'Jefe de Departamento') ? (
+                            <div className="flex items-center gap-2 mr-2" onClick={(e) => e.stopPropagation()}>
+                              <div className="relative flex items-center group/edit">
+                                <input
+                                  type="text"
+                                  value={nombresEditados[u.id] !== undefined ? nombresEditados[u.id] : u.nombre}
+                                  onChange={(e) => setNombresEditados({ ...nombresEditados, [u.id]: e.target.value })}
+                                  className="bg-transparent outline-none max-w-[150px] px-2 py-1 text-sm font-bold truncate transition-all hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg pr-8"
+                                  title="Editar nombre de usuario"
+                                />
+                                <svg className="w-3.5 h-3.5 text-slate-400 absolute right-2 pointer-events-none group-hover/edit:text-[#065E94] dark:group-hover/edit:text-blue-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                </svg>
+                              </div>
+                              {nombresEditados[u.id] !== undefined && nombresEditados[u.id] !== u.nombre && nombresEditados[u.id].trim() !== '' && (
+                                <button
+                                  onClick={(e) => { e.preventDefault(); handleEditarNombreUsuario(u.id, nombresEditados[u.id]); }}
+                                  className="text-[9px] uppercase font-bold text-white tracking-wider bg-blue-500 hover:bg-blue-600 px-2 py-1 rounded shadow-sm transition-all"
+                                >
+                                  Guardar Nombre
+                                </button>
+                              )}
+                            </div>
+                          ) : (
+                            u.nombre
+                          )}
 
                           {/* Edición de Rol in-line para Admins */}
-                          {user?.rol === 'Administrador' ? (
+                          {(user?.rol === 'Administrador' || user?.rol === 'Jefe de Departamento') ? (
                             <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                               <select
                                 value={rolesEditados[u.id] || u.rol || 'Soporte Tecnico'}
                                 onChange={(e) => setRolesEditados({ ...rolesEditados, [u.id]: e.target.value })}
-                                className="text-[10px] uppercase font-bold text-[#065E94] tracking-wider bg-blue-100 px-1 py-0.5 rounded cursor-pointer border-none outline-none hover:bg-blue-200 transition-colors"
+                                className="text-[10px] uppercase font-black text-[#065E94] dark:text-blue-200 tracking-widest bg-blue-50 dark:bg-blue-900/40 px-3 py-1 rounded-full cursor-pointer border border-blue-200/30 dark:border-blue-700/30 outline-none hover:bg-blue-100 dark:hover:bg-blue-800/60 transition-all shadow-sm"
                                 title="Seleccionar nuevo rol"
                               >
                                 <option value="Administrador">Admin</option>
@@ -1599,6 +1675,7 @@ export default function TableroKanban() {
                                 <option value="Soporte Tecnico">Soporte</option>
                                 <option value="Director">Director</option>
                                 <option value="Visualizador">Visual</option>
+                                <option value="Jefe de Departamento">Jefe Dep.</option>
                               </select>
 
                               {/* Mostrar botón Guardar solo si se hizo un cambio en el desplegable */}
@@ -1612,7 +1689,7 @@ export default function TableroKanban() {
                               )}
                             </div>
                           ) : (
-                            <span className="text-[9px] uppercase font-bold text-[#065E94] tracking-wider bg-blue-100/50 px-1.5 py-0.5 rounded-md leading-none">{u.rol || 'Sin Rol'}</span>
+                            <span className="text-[10px] uppercase font-black text-[#065E94] dark:text-blue-200 tracking-widest bg-blue-100/50 dark:bg-blue-900/30 px-3 py-1 rounded-full leading-none border border-blue-200/20 dark:border-blue-700/20 shadow-sm">{u.rol || 'Sin Rol'}</span>
                           )}
                         </span>
                         <span className="text-xs text-slate-500 dark:text-neutral-400 font-medium">{u.email || 'Sin correo registrado'}</span>
@@ -1704,7 +1781,7 @@ export default function TableroKanban() {
               </div>
             </div>
 
-            <h2 className="text-3xl font-extrabold text-slate-800 dark:text-white leading-tight mb-4 tracking-tight">{ticketActivo.titulo}</h2>
+            <h2 className="text-3xl font-extrabold text-slate-800 dark:text-white leading-tight mb-4 tracking-tight break-words">{ticketActivo.titulo}</h2>
 
             <div className="flex items-center gap-3 text-sm text-slate-500 dark:text-neutral-400 mb-6 font-medium">
               <span className="bg-slate-100/80 dark:bg-[var(--bg-secondary)] px-3 py-1.5 rounded-lg text-slate-700 dark:text-neutral-300">{ticketActivo.area}</span>
@@ -1719,10 +1796,10 @@ export default function TableroKanban() {
                 <div className="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-800/40 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
                 </div>
-                <div>
+                <div className="min-w-0 flex-1">
                   <p className="text-[10px] uppercase tracking-widest font-bold text-amber-600/70 dark:text-amber-500/70">Solicitado Por</p>
-                  <p className="text-sm font-bold text-amber-900 dark:text-amber-200 leading-none mt-0.5">
-                    {ticketActivo.solicitante || 'Desconocido'} {ticketActivo.seccion_solicitante && <span className="font-medium text-amber-700 dark:text-amber-400/80"> • {ticketActivo.seccion_solicitante}</span>}
+                  <p className="text-sm font-bold text-amber-900 dark:text-amber-200 leading-tight mt-0.5 break-words">
+                    {ticketActivo.solicitante || 'Desconocido'} {ticketActivo.seccion_solicitante && <span className="font-medium text-amber-700 dark:text-amber-400/80 break-words"> • {ticketActivo.seccion_solicitante}</span>}
                   </p>
                 </div>
               </div>
@@ -1730,7 +1807,7 @@ export default function TableroKanban() {
 
             <div className="bg-slate-50/50 dark:bg-[var(--bg-secondary)] backdrop-blur-sm p-6 rounded-2xl border border-slate-200/50 dark:border-[var(--border-accent)]/50 mb-8 min-h-[140px] shadow-sm">
               <h3 className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4">Descripción</h3>
-              <p className="text-slate-700 dark:text-neutral-300 whitespace-pre-wrap text-[15px] leading-relaxed">{ticketActivo.descripcion}</p>
+              <p className="text-slate-700 dark:text-neutral-300 whitespace-pre-wrap break-words text-[15px] leading-relaxed">{ticketActivo.descripcion}</p>
             </div>
 
             <div className="flex flex-col gap-3">
@@ -1777,7 +1854,7 @@ export default function TableroKanban() {
                       const isEditing = comentarioAEditar === c.id;
 
                       return (
-                        <div key={c.id} className={`flex flex-col max-w-[85%] ${esMio ? 'ml-auto items-end' : 'mr-auto items-start'} group`}>
+                        <div key={c.id} className={`flex flex-col max-w-[85%] min-w-0 ${esMio ? 'ml-auto items-end' : 'mr-auto items-start'} group`}>
                           <div className="flex items-center gap-2 mb-1 px-1">
                             <span className="text-[10px] text-slate-400 font-bold">
                               {userObj?.nombre || 'Usuario Desconocido'} • {new Date(c.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -1817,8 +1894,8 @@ export default function TableroKanban() {
                               </div>
                             </div>
                           ) : (
-                            <div className={`p-3 rounded-2xl text-sm shadow-sm flex flex-col gap-2 ${esMio ? 'bg-[#065E94] dark:bg-blue-600/30 text-white rounded-br-sm' : 'bg-white dark:bg-[var(--bg-secondary)] border border-slate-100 dark:border-transparent text-slate-700 dark:text-neutral-200 rounded-bl-sm'}`}>
-                              {c.texto && <p>{c.texto}</p>}
+                            <div className={`p-3 rounded-2xl text-sm shadow-sm flex flex-col gap-2 max-w-full min-w-0 ${esMio ? 'bg-[#065E94] dark:bg-blue-600/30 text-white rounded-br-sm' : 'bg-white dark:bg-[var(--bg-secondary)] border border-slate-100 dark:border-transparent text-slate-700 dark:text-neutral-200 rounded-bl-sm'}`}>
+                              {c.texto && <p className="whitespace-pre-wrap break-words min-w-0">{c.texto}</p>}
 
                               {c.archivo_url && c.archivo_tipo?.startsWith('image/') && (
                                 <a href={c.archivo_url} target="_blank" rel="noopener noreferrer" className="block mt-1">
@@ -2043,6 +2120,70 @@ export default function TableroKanban() {
                 Confirmar Cierre
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {/* Modal - Cambio de Contraseña Obligatorio (Bloqueante) */}
+      {modalMandatorioOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 dark:bg-black/90 backdrop-blur-xl flex items-center justify-center z-[1000] p-4 animate-in fade-in duration-500">
+          <div className="bg-white/95 dark:bg-[var(--bg-secondary)] rounded-[32px] shadow-[0_30px_100px_-20px_rgba(0,0,0,0.5)] w-full max-w-md p-10 border border-white dark:border-[var(--border-accent)] transform animate-in zoom-in-95 duration-500">
+            <div className="text-center mb-8">
+              <div className="w-20 h-20 bg-amber-100 dark:bg-amber-500/20 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner border border-amber-200 dark:border-amber-500/30">
+                <svg className="w-10 h-10 text-amber-600 dark:text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002-2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+              </div>
+              <h2 className="text-3xl font-extrabold text-slate-800 dark:text-white mb-3 tracking-tight">Acceso Seguro Requerido</h2>
+              <p className="text-slate-500 dark:text-neutral-400 leading-relaxed text-sm">
+                Detectamos que aún usas la contraseña predeterminada. Por seguridad, <span className="font-bold text-slate-700 dark:text-slate-200">debes cambiarla ahora</span> para poder acceder al tablero.
+              </p>
+            </div>
+
+            <form onSubmit={handleCambiarPassword} className="space-y-5">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-400 dark:text-neutral-500 uppercase tracking-[0.2em] mb-2 px-1">Nueva Contraseña</label>
+                <input
+                  required
+                  minLength={6}
+                  autoFocus
+                  type="password"
+                  value={passwordForm.nueva}
+                  onChange={e => setPasswordForm({ ...passwordForm, nueva: e.target.value })}
+                  className="w-full bg-slate-50 dark:bg-[var(--bg-main)] border border-slate-200 dark:border-[var(--border-accent)] dark:text-white rounded-2xl p-4 text-sm focus:ring-4 focus:ring-[#065E94]/20 outline-none transition-all shadow-sm"
+                  placeholder="Mínimo 6 caracteres"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-slate-400 dark:text-neutral-500 uppercase tracking-[0.2em] mb-2 px-1">Confirmar Contraseña</label>
+                <input
+                  required
+                  minLength={6}
+                  type="password"
+                  value={passwordForm.confirmar}
+                  onChange={e => setPasswordForm({ ...passwordForm, confirmar: e.target.value })}
+                  className="w-full bg-slate-50 dark:bg-[var(--bg-main)] border border-slate-200 dark:border-[var(--border-accent)] dark:text-white rounded-2xl p-4 text-sm focus:ring-4 focus:ring-[#065E94]/20 outline-none transition-all shadow-sm"
+                  placeholder="Repite la contraseña"
+                />
+              </div>
+
+              <div className="pt-4 space-y-3">
+                <button
+                  type="submit"
+                  disabled={cambiandoReq}
+                  className="w-full py-4 rounded-2xl text-base font-bold text-white bg-gradient-to-r from-[#065E94] to-[#043d63] hover:from-[#054b77] hover:to-[#032e4b] shadow-xl shadow-[#065E94]/30 dark:shadow-none transition-all hover:-translate-y-1 active:scale-95 disabled:opacity-50"
+                >
+                  {cambiandoReq ? 'Guardando cambios...' : 'Actualizar y Entrar'}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={logout}
+                  className="w-full py-3 text-sm font-bold text-slate-400 hover:text-red-500 transition-colors"
+                >
+                  Salir y cerrar sesión
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
