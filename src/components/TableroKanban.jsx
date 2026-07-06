@@ -2,6 +2,22 @@ import React, { useState, useEffect, useRef } from 'react';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { supabase } from '../supabase';
 import { useAuth } from '../context/AuthContext';
+import EstadisticasPanel from './EstadisticasPanel';
+
+const PERMISOS_DEFAULT = {
+  Administrador: { ver_tablero: true, crear_tickets: true, editar_tickets: true, mover_tarjetas: true, eliminar_tickets: true, gestionar_comentarios: true, ver_estadisticas: true, gestionar_usuarios: true },
+  'Jefe de Departamento': { ver_tablero: true, crear_tickets: true, editar_tickets: true, mover_tarjetas: true, eliminar_tickets: false, gestionar_comentarios: true, ver_estadisticas: true, gestionar_usuarios: true },
+  'Mesa de ayuda': { ver_tablero: true, crear_tickets: true, editar_tickets: true, mover_tarjetas: true, eliminar_tickets: false, gestionar_comentarios: true, ver_estadisticas: false, gestionar_usuarios: false },
+  Usuario: { ver_tablero: true, crear_tickets: true, editar_tickets: false, mover_tarjetas: false, eliminar_tickets: false, gestionar_comentarios: true, ver_estadisticas: false, gestionar_usuarios: false },
+  Director: { ver_tablero: true, crear_tickets: false, editar_tickets: false, mover_tarjetas: false, eliminar_tickets: false, gestionar_comentarios: true, ver_estadisticas: true, gestionar_usuarios: false },
+  Visualizador: { ver_tablero: true, crear_tickets: false, editar_tickets: false, mover_tarjetas: false, eliminar_tickets: false, gestionar_comentarios: false, ver_estadisticas: false, gestionar_usuarios: false },
+  'Soporte Tecnico': { ver_tablero: true, crear_tickets: false, editar_tickets: true, mover_tarjetas: true, eliminar_tickets: false, gestionar_comentarios: true, ver_estadisticas: false, gestionar_usuarios: false }
+};
+
+const getPermisosUsuario = (u) => {
+  if (u?.permisos && Object.keys(u.permisos).length > 0) return u.permisos;
+  return PERMISOS_DEFAULT[u?.rol] || PERMISOS_DEFAULT['Usuario'];
+};
 
 const COLUMNAS_BASE = ['Solicitud', 'En proceso', 'En espera', 'Resuelto'];
 const DEPARTAMENTOS = ['Soporte Técnico', 'Telefonía'];
@@ -239,6 +255,7 @@ export default function TableroKanban() {
   const [ticketActivo, setTicketActivo] = useState(null);
   const [usuarioAEliminar, setUsuarioAEliminar] = useState(null);
   const [ticketAEliminar, setTicketAEliminar] = useState(null);
+  const [expandedUserPerms, setExpandedUserPerms] = useState(null);
 
   // Comentarios
   const [comentarios, setComentarios] = useState([]);
@@ -938,6 +955,17 @@ export default function TableroKanban() {
     }
   };
 
+  // Editar Permisos Granulares
+  const handleGuardarPermisos = async (userId, nuevosPermisos) => {
+    setUsuarios(prev => prev.map(u => u.id === userId ? { ...u, permisos: nuevosPermisos } : u));
+    const { error } = await supabase.from('usuarios').update({ permisos: nuevosPermisos }).eq('id', userId);
+    if (error) {
+      console.error('Error al actualizar permisos', error);
+      alert('Error al guardar los permisos en la base de datos.');
+      fetchData();
+    }
+  };
+
   // 5c. Editar Nombre de Usuario
   const handleEditarNombreUsuario = async (userId, nuevoNombre) => {
     if (!nuevoNombre || !nuevoNombre.trim()) return;
@@ -1212,7 +1240,7 @@ export default function TableroKanban() {
             )}
 
 
-            {user?.rol !== 'Director' && user?.rol !== 'Visualizador' && (
+            {getPermisosUsuario(user).crear_tickets && (
               <button
                 onClick={() => {
                   setFormConfig({ id: null, titulo: '', descripcion: '', area: '', prioridad: 'Media', responsables: [], departamento: departamentoActivo, solicitante: '', seccion_solicitante: '' });
@@ -1225,27 +1253,24 @@ export default function TableroKanban() {
               </button>
             )}
 
-            <button
-              onClick={() => {
-                if (user?.rol === 'Administrador' || user?.rol === 'Jefe de Departamento') {
-                  setFormConfig({ id: null, titulo: '', descripcion: '', area: '', prioridad: 'Media', responsables: [], departamento: departamentoActivo, solicitante: '', seccion_solicitante: '' });
-                }
-                setModalUsuariosOpen(true);
-              }}
-              className="px-5 py-2.5 rounded-xl text-sm font-semibold text-[#065E94] dark:text-white bg-white/80 dark:bg-[var(--bg-secondary)] hover:bg-blue-50 dark:hover:bg-[var(--bg-hover)] shadow-[0_4px_15px_-3px_rgba(6,94,148,0.15)] dark:shadow-none hover:-translate-y-1 dark:hover:-translate-y-0 transition-all duration-300 border border-blue-100 dark:border-[var(--border-accent)] backdrop-blur-md dark:backdrop-blur-none flex items-center gap-2"
-            >
-              {user?.rol === 'Administrador' ? (
-                <>
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
-                  Gestión de Usuarios
-                </>
-              ) : (
-                <>
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
-                  Directorio
-                </>
-              )}
-            </button>
+            {getPermisosUsuario(user).gestionar_usuarios ? (
+              <button
+                onClick={() => setModalUsuariosOpen(true)}
+                className="px-5 py-2.5 rounded-xl text-sm font-semibold text-[#065E94] dark:text-white bg-white/80 dark:bg-[var(--bg-secondary)] hover:bg-blue-50 dark:hover:bg-[var(--bg-hover)] shadow-[0_4px_15px_-3px_rgba(6,94,148,0.15)] dark:shadow-none hover:-translate-y-1 dark:hover:-translate-y-0 transition-all duration-300 border border-blue-100 dark:border-[var(--border-accent)] backdrop-blur-md dark:backdrop-blur-none flex items-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                Gestión de Usuarios
+              </button>
+            ) : (
+              <button
+                onClick={() => setModalUsuariosOpen(true)}
+                className="px-5 py-2.5 rounded-xl text-sm font-semibold text-[#065E94] dark:text-white bg-white/80 dark:bg-[var(--bg-secondary)] hover:bg-blue-50 dark:hover:bg-[var(--bg-hover)] shadow-[0_4px_15px_-3px_rgba(6,94,148,0.15)] dark:shadow-none hover:-translate-y-1 dark:hover:-translate-y-0 transition-all duration-300 border border-blue-100 dark:border-[var(--border-accent)] backdrop-blur-md dark:backdrop-blur-none flex items-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                Lista de usuarios
+              </button>
+            )}
+
             <button
               onClick={logout}
               className="px-4 py-2.5 rounded-xl text-sm font-semibold text-red-600 dark:text-red-400 bg-white/80 dark:bg-[var(--bg-secondary)] hover:bg-red-50 dark:hover:bg-[var(--bg-hover)] shadow-[0_4px_15px_-3px_rgba(239,68,68,0.1)] hover:shadow-[0_8px_25px_-5px_rgba(239,68,68,0.2)] dark:shadow-none hover:-translate-y-1 dark:hover:-translate-y-0 transition-all duration-300 border border-red-100 dark:border-[var(--border-accent)] backdrop-blur-md dark:backdrop-blur-none flex items-center gap-2"
@@ -1325,7 +1350,7 @@ export default function TableroKanban() {
                             ticket={ticket}
                             index={index}
                             onClick={handleTicketClick}
-                            isReadOnly={user?.rol === 'Director' || user?.rol === 'Visualizador'}
+                            isReadOnly={!getPermisosUsuario(user).mover_tarjetas}
                           />
                         ))
                       )}
@@ -1567,7 +1592,7 @@ export default function TableroKanban() {
         <div className="fixed inset-0 bg-slate-900/20 dark:bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4 opacity-100 transition-opacity animate-in fade-in duration-300" onClick={(e) => { if (e.target === e.currentTarget) setModalUsuariosOpen(false) }}>
           <div className="bg-white/90 dark:bg-[var(--bg-secondary)] backdrop-blur-2xl dark:backdrop-blur-none rounded-[28px] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] dark:shadow-none w-full max-w-4xl p-10 border border-white/60 dark:border-[var(--border-accent)] flex flex-col md:flex-row gap-12 animate-in zoom-in-95 duration-300">
             {/* Formulario Izquierda (Solo Admin) */}
-            {(user?.rol === 'Administrador' || user?.rol === 'Jefe de Departamento') && (
+            {getPermisosUsuario(user).gestionar_usuarios && (
               <div className="flex-1">
                 <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-6 bg-clip-text text-transparent bg-gradient-to-r from-[#065E94] to-[#043d63] dark:from-[#2a83bd] dark:to-[#4ea8de]">Gestión de Usuarios</h2>
                 <form onSubmit={handleCrearUsuario} className="space-y-5">
@@ -1622,89 +1647,146 @@ export default function TableroKanban() {
             )}
 
             {/* Lista Derecha */}
-            {/* Lista Derecha */}
-            <div className={`flex flex-col h-[500px] ${(user?.rol === 'Administrador' || user?.rol === 'Jefe de Departamento') ? 'flex-[1.2] border-t md:border-t-0 md:border-l border-slate-200/60 dark:border-[var(--border-accent)] pt-6 md:pt-0 md:pl-8' : 'w-full'}`}>
-              <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-1 bg-clip-text text-transparent bg-gradient-to-r from-[#065E94] to-[#043d63] dark:bg-none tracking-tight">Directorio</h2>
-              <p className="text-sm text-slate-500 dark:text-neutral-400 mb-6">Lista de miembros</p>
+            <div className={`flex flex-col h-[500px] ${getPermisosUsuario(user).gestionar_usuarios ? 'flex-[1.2] border-t md:border-t-0 md:border-l border-slate-200/60 dark:border-[var(--border-accent)] pt-6 md:pt-0 md:pl-8' : 'w-full'}`}>
+              <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-6 bg-clip-text text-transparent bg-gradient-to-r from-[#065E94] to-[#043d63] dark:bg-none tracking-tight">Lista de usuarios</h2>
               <div className="flex-1 overflow-y-auto overscroll-contain pr-2 space-y-3 custom-scrollbar">
                 {usuarios.length === 0 ? (
                   <p className="text-sm text-slate-400 dark:text-slate-500 text-center mt-10">No hay usuarios registrados</p>
                 ) : (
                   usuarios.map(u => (
-                    <div key={u.id} className="bg-slate-50/80 dark:bg-[var(--bg-secondary)] p-4 rounded-2xl border border-slate-100 dark:border-[var(--border-accent)] flex items-center justify-between gap-4 group transition-all hover:bg-white dark:hover:bg-white/[0.03]">
-                      <div className="flex flex-col gap-0.5">
-                        <span className="font-bold text-slate-700 dark:text-white text-sm flex items-center gap-2">
-                          {(user?.rol === 'Administrador' || user?.rol === 'Jefe de Departamento') ? (
-                            <div className="flex items-center gap-2 mr-2" onClick={(e) => e.stopPropagation()}>
-                              <div className="relative flex items-center group/edit">
-                                <input
-                                  type="text"
-                                  value={nombresEditados[u.id] !== undefined ? nombresEditados[u.id] : u.nombre}
-                                  onChange={(e) => setNombresEditados({ ...nombresEditados, [u.id]: e.target.value })}
-                                  className="bg-transparent outline-none max-w-[150px] px-2 py-1 text-sm font-bold truncate transition-all hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg pr-8"
-                                  title="Editar nombre de usuario"
-                                />
-                                <svg className="w-3.5 h-3.5 text-slate-400 absolute right-2 pointer-events-none group-hover/edit:text-[#065E94] dark:group-hover/edit:text-blue-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                                </svg>
+                    <div key={u.id} className={`bg-slate-50/80 dark:bg-[var(--bg-secondary)] p-4 rounded-2xl border border-slate-100 dark:border-[var(--border-accent)] flex flex-col transition-all hover:bg-white dark:hover:bg-white/[0.03]`}>
+                      
+                      {/* Fila principal: Info del usuario + Botón Borrar */}
+                      <div className="flex justify-between items-start w-full group">
+                        <div className="flex flex-col gap-1.5 w-full pr-4">
+                          <div className="flex flex-wrap items-center gap-3">
+                            {/* Nombre */}
+                            <div className="font-bold text-slate-700 dark:text-white text-sm flex items-center gap-2">
+                              {getPermisosUsuario(user).gestionar_usuarios ? (
+                                <>
+                                  <div className="relative flex items-center group/edit" onClick={(e) => e.stopPropagation()}>
+                                    <input
+                                      type="text"
+                                      value={nombresEditados[u.id] !== undefined ? nombresEditados[u.id] : u.nombre}
+                                      onChange={(e) => setNombresEditados({ ...nombresEditados, [u.id]: e.target.value })}
+                                      className="bg-transparent outline-none max-w-[150px] px-2 py-1 text-sm font-bold truncate transition-all hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg pr-8"
+                                      title="Editar nombre de usuario"
+                                    />
+                                    <svg className="w-3.5 h-3.5 text-slate-400 absolute right-2 pointer-events-none group-hover/edit:text-[#065E94] dark:group-hover/edit:text-blue-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                    </svg>
+                                  </div>
+                                  {nombresEditados[u.id] !== undefined && nombresEditados[u.id] !== u.nombre && nombresEditados[u.id].trim() !== '' && (
+                                    <button
+                                      onClick={(e) => { e.preventDefault(); handleEditarNombreUsuario(u.id, nombresEditados[u.id]); }}
+                                      className="text-[9px] uppercase font-bold text-white tracking-wider bg-blue-500 hover:bg-blue-600 px-2 py-1 rounded shadow-sm transition-all"
+                                    >
+                                      Guardar Nombre
+                                    </button>
+                                  )}
+                                </>
+                              ) : (
+                                u.nombre
+                              )}
+                            </div>
+
+                            {/* Select de Rol y Botones */}
+                            {getPermisosUsuario(user).gestionar_usuarios ? (
+                              <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                                <select
+                                  value={rolesEditados[u.id] || u.rol || 'Soporte Tecnico'}
+                                  onChange={(e) => setRolesEditados({ ...rolesEditados, [u.id]: e.target.value })}
+                                  className="text-[10px] uppercase font-black text-[#065E94] dark:text-blue-200 tracking-widest bg-blue-50 dark:bg-blue-900/40 px-3 py-1 rounded-full cursor-pointer border border-blue-200/30 dark:border-blue-700/30 outline-none hover:bg-blue-100 dark:hover:bg-blue-800/60 transition-all shadow-sm"
+                                  title="Seleccionar rol base"
+                                >
+                                  <option value="Administrador">Admin</option>
+                                  <option value="Mesa de ayuda">Mesa</option>
+                                  <option value="Soporte Tecnico">Soporte</option>
+                                  <option value="Director">Director</option>
+                                  <option value="Visualizador">Visual</option>
+                                  <option value="Jefe de Departamento">Jefe Dep.</option>
+                                </select>
+                                {rolesEditados[u.id] && rolesEditados[u.id] !== u.rol && (
+                                  <button
+                                    onClick={(e) => { e.preventDefault(); handleEditarRolUsuario(u.id, rolesEditados[u.id]); }}
+                                    className="text-[9px] uppercase font-bold text-white tracking-wider bg-emerald-500 hover:bg-emerald-600 px-2 py-1 rounded shadow-sm transition-all"
+                                  >
+                                    Guardar Rol
+                                  </button>
+                                )}
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); setExpandedUserPerms(expandedUserPerms === u.id ? null : u.id); }}
+                                  className="text-[10px] uppercase font-bold text-indigo-600 bg-indigo-50 dark:bg-indigo-900/40 hover:bg-indigo-100 dark:hover:bg-indigo-800/60 px-2 py-1 rounded-full transition-colors border border-indigo-200 dark:border-indigo-700/30 shadow-sm"
+                                >
+                                  {expandedUserPerms === u.id ? 'Ocultar' : 'Permisos'}
+                                </button>
                               </div>
-                              {nombresEditados[u.id] !== undefined && nombresEditados[u.id] !== u.nombre && nombresEditados[u.id].trim() !== '' && (
-                                <button
-                                  onClick={(e) => { e.preventDefault(); handleEditarNombreUsuario(u.id, nombresEditados[u.id]); }}
-                                  className="text-[9px] uppercase font-bold text-white tracking-wider bg-blue-500 hover:bg-blue-600 px-2 py-1 rounded shadow-sm transition-all"
-                                >
-                                  Guardar Nombre
-                                </button>
-                              )}
-                            </div>
-                          ) : (
-                            u.nombre
-                          )}
+                            ) : (
+                              <span className="text-[10px] uppercase font-black text-[#065E94] dark:text-blue-200 tracking-widest bg-blue-100/50 dark:bg-blue-900/30 px-3 py-1 rounded-full leading-none border border-blue-200/20 dark:border-blue-700/20 shadow-sm">{u.rol || 'Sin Rol'}</span>
+                            )}
+                          </div>
 
-                          {/* Edición de Rol in-line para Admins */}
-                          {(user?.rol === 'Administrador' || user?.rol === 'Jefe de Departamento') ? (
-                            <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                              <select
-                                value={rolesEditados[u.id] || u.rol || 'Soporte Tecnico'}
-                                onChange={(e) => setRolesEditados({ ...rolesEditados, [u.id]: e.target.value })}
-                                className="text-[10px] uppercase font-black text-[#065E94] dark:text-blue-200 tracking-widest bg-blue-50 dark:bg-blue-900/40 px-3 py-1 rounded-full cursor-pointer border border-blue-200/30 dark:border-blue-700/30 outline-none hover:bg-blue-100 dark:hover:bg-blue-800/60 transition-all shadow-sm"
-                                title="Seleccionar nuevo rol"
-                              >
-                                <option value="Administrador">Admin</option>
-                                <option value="Mesa de ayuda">Mesa</option>
-                                <option value="Soporte Tecnico">Soporte</option>
-                                <option value="Director">Director</option>
-                                <option value="Visualizador">Visual</option>
-                                <option value="Jefe de Departamento">Jefe Dep.</option>
-                              </select>
+                          {/* Email y Dependencia */}
+                          <div className="flex flex-col gap-0.5 mt-1">
+                            <span className="text-xs text-slate-500 dark:text-neutral-400 font-medium">{u.email || 'Sin correo registrado'}</span>
+                            <span className="text-[11px] text-slate-400 dark:text-slate-500 font-medium">{u.dependencia} • Piso {u.piso}</span>
+                          </div>
+                        </div>
 
-                              {/* Mostrar botón Guardar solo si se hizo un cambio en el desplegable */}
-                              {rolesEditados[u.id] && rolesEditados[u.id] !== u.rol && (
-                                <button
-                                  onClick={(e) => { e.preventDefault(); handleEditarRolUsuario(u.id, rolesEditados[u.id]); }}
-                                  className="text-[9px] uppercase font-bold text-white tracking-wider bg-emerald-500 hover:bg-emerald-600 px-2 py-1 rounded shadow-sm transition-all"
-                                >
-                                  Guardar
-                                </button>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-[10px] uppercase font-black text-[#065E94] dark:text-blue-200 tracking-widest bg-blue-100/50 dark:bg-blue-900/30 px-3 py-1 rounded-full leading-none border border-blue-200/20 dark:border-blue-700/20 shadow-sm">{u.rol || 'Sin Rol'}</span>
-                          )}
-                        </span>
-                        <span className="text-xs text-slate-500 dark:text-neutral-400 font-medium">{u.email || 'Sin correo registrado'}</span>
-                        <span className="text-[11px] text-slate-400 dark:text-slate-500 font-medium">{u.dependencia} • Piso {u.piso}</span>
+                        {/* Botón Borrar solo para Admin */}
+                        {getPermisosUsuario(user).gestionar_usuarios && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); e.preventDefault(); setUsuarioAEliminar(u); }}
+                            className="text-slate-300 hover:text-red-500 hover:bg-red-50 p-2 rounded-lg transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100 shrink-0"
+                            title="Eliminar Usuario"
+                          >
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                          </button>
+                        )}
                       </div>
 
-                      {/* Botón Borrar solo para Admin */}
-                      {user?.rol === 'Administrador' && (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); e.preventDefault(); setUsuarioAEliminar(u); }}
-                          className="text-slate-300 hover:text-red-500 hover:bg-red-50 p-2 rounded-lg transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
-                          title="Eliminar Usuario"
-                        >
-                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                        </button>
+                      {/* Panel de Permisos Personalizados (Acordeón estático) */}
+                      {getPermisosUsuario(user).gestionar_usuarios && expandedUserPerms === u.id && (
+                        <div className="mt-4 pt-4 border-t border-slate-200/60 dark:border-white/10 w-full animate-in fade-in slide-in-from-top-2 duration-200">
+                          <div className="flex items-center justify-between mb-4">
+                            <p className="text-xs font-black text-slate-600 dark:text-neutral-300 uppercase tracking-widest">Permisos Personalizados</p>
+                          </div>
+                          <div className="grid grid-cols-2 gap-y-4 gap-x-5">
+                            {[
+                              { key: 'ver_tablero', label: 'Ver Tablero' },
+                              { key: 'crear_tickets', label: 'Crear Tickets' },
+                              { key: 'editar_tickets', label: 'Editar Tickets' },
+                              { key: 'mover_tarjetas', label: 'Mover Tarjetas' },
+                              { key: 'eliminar_tickets', label: 'Eliminar Tickets' },
+                              { key: 'gestionar_comentarios', label: 'Comentar' },
+                              { key: 'ver_estadisticas', label: 'Estadísticas' },
+                              { key: 'gestionar_usuarios', label: 'Gestión Usuarios' }
+                            ].map(perm => {
+                              const uPerms = getPermisosUsuario(u);
+                              const hasPerm = !!uPerms[perm.key];
+                              return (
+                                <label key={perm.key} className="flex items-center gap-3 cursor-pointer select-none group/sw p-1.5 -ml-1.5 rounded-xl hover:bg-slate-100/80 dark:hover:bg-white/5 transition-all">
+                                  <button
+                                    type="button"
+                                    role="switch"
+                                    aria-checked={hasPerm}
+                                    onClick={() => handleGuardarPermisos(u.id, { ...uPerms, [perm.key]: !hasPerm })}
+                                    className={`${
+                                      hasPerm ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-600'
+                                    } relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none shadow-inner`}
+                                  >
+                                    <span
+                                      aria-hidden="true"
+                                      className={`${hasPerm ? 'translate-x-4' : 'translate-x-0'}
+                                        pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-300 ease-in-out`}
+                                    />
+                                  </button>
+                                  <span className="text-xs font-bold text-slate-600 dark:text-neutral-300 group-hover/sw:text-indigo-600 dark:group-hover/sw:text-indigo-400 transition-colors leading-tight">{perm.label}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
                       )}
                     </div>
                   ))
