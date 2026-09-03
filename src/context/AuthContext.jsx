@@ -7,6 +7,7 @@ export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
     const [session, setSession] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [isRecovery, setIsRecovery] = useState(false);
 
     const fetchUserProfile = async (sessionUser) => {
         if (!sessionUser) {
@@ -46,6 +47,9 @@ export const AuthProvider = ({ children }) => {
 
         // Escuchar cambios de autenticación (login, logout, token refresh)
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+            if (_event === 'PASSWORD_RECOVERY') {
+                setIsRecovery(true);
+            }
             setLoading(true); // Evitar parpadeos de UI
             setSession(session);
             fetchUserProfile(session?.user);
@@ -77,8 +81,14 @@ export const AuthProvider = ({ children }) => {
         return await supabase.auth.signOut();
     };
 
+    const resetPasswordForEmail = async (email) => {
+        return await supabase.auth.resetPasswordForEmail(email, {
+            redirectTo: window.location.origin + '/login',
+        });
+    };
+
     return (
-        <AuthContext.Provider value={{ user, session, login, registro, logout, loading }}>
+        <AuthContext.Provider value={{ user, session, login, registro, logout, resetPasswordForEmail, loading, isRecovery }}>
             {!loading && children}
         </AuthContext.Provider>
     );

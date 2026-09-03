@@ -1,16 +1,46 @@
-# React + Vite
+Mi Ticketera (Kanban Board)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Bienvenido a Mi Ticketera, una aplicación de gestión de tareas estilo Kanban.
 
-Currently, two official plugins are available:
+Requisitos Previos
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+Asegúrate de tener instalado en tu computadora:
+- [Node.js](https://nodejs.org/es/) (Versión 18 o superior recomendada).
+- Una cuenta y proyecto en [Supabase](https://supabase.com/).
+Cómo levantar el proyecto localmente
 
-## React Compiler
+Sigue estos pasos para instalar y ejecutar la aplicación en tu entorno local de desarrollo:
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+1. Clonar o descargar el repositorio
+Si tienes el código, navega a la carpeta principal del proyecto usando tu terminal:
+```bash
+cd mi-ticketera
+```
 
-## Expanding the ESLint configuration
+2. Instalar las dependencias
+Ejecuta el siguiente comando para descargar todos los paquetes necesarios de Node:
+```bash
+npm install
+```
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+3. Configurar variables de entorno (Supabase)
+La aplicación utiliza Supabase como Backend as a Service. La conexión se gestiona en `src/supabase.js`, por lo que no es necesario crear un archivo `.env` manual, si las claves ya están configuradas en ese archivo.
+> Nota: Por seguridad, para un entorno de producción real, asegúrate de utilizar variables de entorno (usualmente `.env.local` con `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY`).
+
+ 4. Iniciar el servidor de desarrollo
+Para correr la aplicación y verla en tu navegador, ejecuta:
+```bash
+npm run dev
+```
+La terminal te mostrará un link local (usualmente `http://localhost:5173/`). Abre ese link en tu navegador.
+
+ Comandos útiles
+
+- `npm run dev`: Inicia el servidor local con Hot Module Replacement.
+- `npm run build`: Construye la versión de producción optimizada de la aplicación dentro de la carpeta `dist`.
+- `npm run preview`: Previsualiza localmente la build de producción.
+
+ Estructura Principal
+- `src/pages/`: Páginas principales (Dashboard, Login).
+- `src/components/`: Componentes reutilizables (TableroKanban, etc).
+- `src/context/`: Manejo de estados globales, como la autenticación con Supabase (`AuthContext`).

@@ -63,11 +63,18 @@ export default function Registro() {
                 <div className="absolute top-[30%] right-[20%] w-64 h-64 bg-slate-200 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
 
                 <div className="bg-white/80 backdrop-blur-xl p-10 rounded-[32px] shadow-2xl w-full max-w-lg border border-slate-100 relative z-10">
-                    <div className="mb-8 text-center">
-                        <h2 className="text-3xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-[#065E94] to-[#043d63] tracking-tight">
-                            Crear Cuenta
-                        </h2>
-                        <p className="text-slate-500 mt-2 text-sm font-medium">Únete a la Ticketera para gestionar y crear solicitudes</p>
+                    <div className="mb-8 text-center flex flex-col items-center">
+                        <div className="flex items-center justify-center gap-3 mb-2">
+                            <img
+                                src="/logo-pba.png"
+                                alt="Provincia de Buenos Aires"
+                                className="h-10 w-auto object-contain filter drop-shadow-sm [filter:invert(23%)_sepia(85%)_saturate(1637%)_hue-rotate(182deg)_brightness(96%)_contrast(96%)]"
+                            />
+                            <h2 className="text-3xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-[#065E94] to-[#043d63] tracking-tight">
+                                Crear Cuenta
+                            </h2>
+                        </div>
+                        <p className="text-slate-500 mt-1 text-sm font-medium">Únete a la Ticketera para gestionar y crear solicitudes</p>
                     </div>
 
                     {errorMsg && (
