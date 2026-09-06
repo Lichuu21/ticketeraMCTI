@@ -59,14 +59,30 @@ const COLUMNAS_BASE = ['Solicitud', 'En proceso', 'En espera', 'Resuelto'];
 
 const getNumeroTicket = (ticket, allTickets) => {
   if (!ticket || ticket.prioridad === 'Nota') return null;
-  if (!allTickets || allTickets.length === 0) return ticket.id;
+  if (typeof ticket.id !== 'number') return ticket.id;
 
-  const nonNotas = allTickets
-    .filter(t => t.prioridad !== 'Nota')
-    .sort((a, b) => a.id - b.id);
+  const tableroId = ticket.tablero_id || 'default';
+  const storageKey = `board_min_id_${tableroId}`;
 
-  const idx = nonNotas.findIndex(t => t.id === ticket.id);
-  return idx !== -1 ? idx + 1 : ticket.id;
+  // Buscar el menor ID de los tickets (no notas) en este tablero
+  let baseMin = ticket.id;
+  if (Array.isArray(allTickets) && allTickets.length > 0) {
+    const nonNotas = allTickets.filter(t => t.prioridad !== 'Nota' && typeof t.id === 'number');
+    if (nonNotas.length > 0) {
+      baseMin = Math.min(...nonNotas.map(t => t.id));
+    }
+  }
+
+  // Si ya existía un ID mínimo registrado anteriormente para este tablero, no permitir que aumente al eliminar tickets
+  const cachedMin = localStorage.getItem(storageKey);
+  if (cachedMin && !isNaN(Number(cachedMin))) {
+    baseMin = Math.min(Number(cachedMin), baseMin);
+  }
+
+  localStorage.setItem(storageKey, baseMin);
+
+  const num = ticket.id - baseMin + 1;
+  return num > 0 ? num : ticket.id;
 };
 
 const getPrioridadColor = (prioridad) => {
@@ -1571,6 +1587,8 @@ export default function TableroKanban() {
       setTickets(prev => prev.filter(t => t.id !== ticketAEliminar.id)); // Instantáneo
       setTicketAEliminar(null);
       setTicketActivo(null);
+      setDetalleOpen(false);
+      setModalOpen(false);
     }
   };
 
@@ -3291,26 +3309,26 @@ export default function TableroKanban() {
                 </form>
               </div>
             </div>
-
-            {/* Sub-Modal Confirmación Eliminar Ticket */}
-            {ticketAEliminar && (
-              <div className="absolute inset-0 bg-slate-900/40 dark:bg-black/60 backdrop-blur-sm rounded-[32px] flex items-center justify-center z-50 p-6 animate-in fade-in duration-200">
-                <div className="bg-white dark:bg-[var(--bg-secondary)] rounded-2xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] w-full max-w-sm p-6 text-center transform transition-all animate-in zoom-in-95 duration-200 border border-transparent dark:border-[var(--border-accent)]">
-                  <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 text-red-500 dark:text-red-400 rounded-full flex items-center justify-center mx-auto mb-4 object-center">
-                    <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-                  </div>
-                  <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">Eliminar Ticket</h3>
-                  <p className="text-sm text-slate-500 dark:text-neutral-400 mb-6">¿Estás seguro que deseas eliminar permanentemente el ticket <b>"{ticketAEliminar.titulo}"</b>?</p>
-                  <div className="flex gap-3 justify-center">
-                    <button onClick={() => setTicketAEliminar(null)} className="flex-1 px-4 py-2.5 rounded-xl font-semibold text-slate-600 dark:text-neutral-300 bg-slate-100 dark:bg-[var(--bg-secondary)] hover:bg-slate-200 dark:hover:bg-[var(--bg-hover)] transition-colors">Cancelar</button>
-                    <button onClick={handleEliminarTicket} className="flex-1 px-4 py-2.5 rounded-xl font-semibold text-white bg-red-500 hover:bg-red-600 shadow-lg shadow-red-500/30 dark:shadow-none transition-all hover:-translate-y-0.5">Sí, eliminar</button>
-                  </div>
-                </div>
-              </div>
-            )}
           </>
         )}
       </div>
+
+      {/* Modal Confirmación Eliminar Ticket */}
+      {ticketAEliminar && (
+        <div className="fixed inset-0 bg-slate-900/60 dark:bg-black/80 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-[var(--bg-secondary)] rounded-2xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] w-full max-w-sm p-6 text-center transform transition-all animate-in zoom-in-95 duration-200 border border-transparent dark:border-[var(--border-accent)]">
+            <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 text-red-500 dark:text-red-400 rounded-full flex items-center justify-center mx-auto mb-4 object-center">
+              <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+            </div>
+            <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">Eliminar Ticket</h3>
+            <p className="text-sm text-slate-500 dark:text-neutral-400 mb-6">¿Estás seguro que deseas eliminar permanentemente el ticket <b>"{ticketAEliminar.titulo}"</b>?</p>
+            <div className="flex gap-3 justify-center">
+              <button onClick={() => setTicketAEliminar(null)} className="flex-1 px-4 py-2.5 rounded-xl font-semibold text-slate-600 dark:text-neutral-300 bg-slate-100 dark:bg-[var(--bg-secondary)] hover:bg-slate-200 dark:hover:bg-[var(--bg-hover)] transition-colors">Cancelar</button>
+              <button onClick={handleEliminarTicket} className="flex-1 px-4 py-2.5 rounded-xl font-semibold text-white bg-red-500 hover:bg-red-600 shadow-lg shadow-red-500/30 dark:shadow-none transition-all hover:-translate-y-0.5">Sí, eliminar</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* MODAL DE RESOLUCIÓN (Reemplaza a window.prompt para no romper el drag and drop) */}
       {modalResolucionOpen && (

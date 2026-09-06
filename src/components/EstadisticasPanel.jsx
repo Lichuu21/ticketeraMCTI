@@ -210,6 +210,7 @@ export default function EstadisticasPanel({ tickets, usuarios, themeMode = 'dark
 
   const ticketsFiltrados = useMemo(() => {
     return tickets.filter(t => {
+      if (t.prioridad === 'Nota') return false;
       const d = new Date(t.fecha_creacion);
       const anioMatch = d.getFullYear() === parseInt(anioSeleccionado);
       const mesMatch = mesSeleccionado === 'todos' || d.getMonth() === parseInt(mesSeleccionado);
@@ -419,23 +420,7 @@ export default function EstadisticasPanel({ tickets, usuarios, themeMode = 'dark
         { key: 'resueltos', label: 'Resueltos', color: '#00a2bb' },
       ]);
 
-    // ─── Tabla de tickets detallados ───
-    const ticketRows = ticketsFiltrados.slice(0, 60).map(t => {
-      const fecha = new Date(t.fecha_creacion).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' });
-      const estadoColors = { 'Resuelto': '#10b981', 'En proceso': '#f59e0b', 'Solicitud': '#6366f1', 'Sin asignar': '#94a3b8' };
-      const estadoColor = estadoColors[t.estado] || '#64748b';
-      const prioridadColors = { 'Urgente': '#ef4444', 'Alta': '#f97316', 'Media': '#f59e0b', 'Baja': '#10b981' };
-      const prioridadColor = prioridadColors[t.prioridad] || '#64748b';
-      return `<tr>
-        <td style="color:#1e293b;font-weight:700">#${t.id}</td>
-        <td style="color:#334155;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.titulo || '—'}</td>
-        <td><span style="background:${estadoColor}20;color:${estadoColor};padding:2px 8px;border-radius:99px;font-size:10px;font-weight:700">${t.estado || '—'}</span></td>
-        <td><span style="background:${prioridadColor}20;color:${prioridadColor};padding:2px 8px;border-radius:99px;font-size:10px;font-weight:700">${t.prioridad || '—'}</span></td>
-        <td style="color:#64748b">${t.seccion_solicitante || t.departamento || '—'}</td>
-        <td style="color:#64748b">${(t.responsable || '—').split(',')[0].trim()}</td>
-        <td style="color:#64748b">${fecha}</td>
-      </tr>`;
-    }).join('');
+
 
     // ─── Dependencias top ───
     const depRows = porDependencia.map((d, i) => {
@@ -606,22 +591,7 @@ export default function EstadisticasPanel({ tickets, usuarios, themeMode = 'dark
     </div>` : ''}
   </div>
 
-  <!-- TABLA DETALLADA DE TICKETS -->
-  ${ticketsFiltrados.length > 0 ? `
-  <div class="section" style="page-break-before: always">
-    <div class="section-title">
-      <div class="section-accent"></div>
-      <p>Detalle de Tickets — ${periodoLabel}${ticketsFiltrados.length > 60 ? ` (mostrando primeros 60 de ${ticketsFiltrados.length})` : ''}</p>
-    </div>
-    <table>
-      <thead>
-        <tr>
-          <th>#</th><th>Título</th><th>Estado</th><th>Prioridad</th><th>Dependencia</th><th>Responsable</th><th>Fecha</th>
-        </tr>
-      </thead>
-      <tbody>${ticketRows}</tbody>
-    </table>
-  </div>` : ''}
+
 
   <!-- PIE DE PÁGINA -->
   <div class="footer">
