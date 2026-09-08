@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../supabase';
+import api from '../api';
 
 export default function Registro() {
     const [email, setEmail] = useState('');
@@ -21,7 +21,6 @@ export default function Registro() {
         setLoading(true);
         setErrorMsg('');
 
-        // 1. Crear usuario en Auth
         const { data: authData, error: authError } = await registro(email, password, nombre);
 
         if (authError) {
@@ -30,20 +29,17 @@ export default function Registro() {
             return;
         }
 
-        // 2. Guardar el perfil en la tabla usuarios pública
         if (authData?.user) {
-            const { error: dbError } = await supabase
-                .from('usuarios')
-                .insert([{
-                    id: authData.user.id, // Vinculamos el UUID de Auth
-                    nombre,
-                    dependencia,
-                    piso
-                }]);
+            const { error: dbError } = await api.from('usuarios').insert([{
+                id: authData.user.id,
+                nombre,
+                email,
+                dependencia,
+                piso
+            }]);
 
             if (dbError) {
                 console.error("Error guardando perfil:", dbError);
-                // Nota: en producción deberíamos borrar el usuario de Auth si esto falla para no dejar cuentas huérfanas
                 setErrorMsg('Cuenta creada, pero hubo un error al guardar tu perfil. Contacta a sistemas.');
             } else {
                 alert("¡Registro exitoso! Ya puedes iniciar sesión.");
@@ -58,7 +54,6 @@ export default function Registro() {
         <div className="min-h-screen flex text-slate-800 bg-slate-300">
             <div className="w-full flex items-center justify-center p-8 z-10 relative overflow-hidden">
 
-                {/* Adornos abstractos - Modificados a tonos azules tranquilos */}
                 <div className="absolute top-[10%] left-[20%] w-64 h-64 bg-blue-200 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
                 <div className="absolute top-[30%] right-[20%] w-64 h-64 bg-slate-200 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
 

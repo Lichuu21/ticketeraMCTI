@@ -9,6 +9,16 @@ export default defineConfig({
     tailwindcss(),
   ],
   server: {
-    host: true
+    host: true,
+    proxy: {
+      '/api': {
+        target: 'http://ticket-api:8000',
+        changeOrigin: true,
+      },
+      '/media': {
+        target: 'http://ticket-api:8000',
+        changeOrigin: true,
+      },
+    },
   }
 })

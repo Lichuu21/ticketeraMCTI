@@ -1,0 +1,14 @@
+node_modules
+dist
+dist-ssr
+.git
+.gitignore
+.vscode
+.idea
+*.md
+backups
+n8n
+Dockerfile.frontend
+docker-compose.yml
+db
+backend

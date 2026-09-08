@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../supabase';
 import { useAuth } from '../context/AuthContext';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, MouseSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, sortableKeyboardCoordinates, rectSortingStrategy, arrayMove, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import GestionUsuariosGlobal from '../components/GestionUsuariosGlobal';
 import { parseTableroConfig, buildTableroConfig } from '../utils/configTablero';
+import api, { BASE_URL } from '../api';
 
 export default function Dashboard() {
   const [tableros, setTableros] = useState([]);
@@ -49,7 +49,7 @@ export default function Dashboard() {
   useEffect(() => {
     if (user?.id) {
       const cargarPerfil = async () => {
-        const { data } = await supabase.from('usuarios').select('*').eq('id', user.id).single();
+        const { data } = await api.from('usuarios').select('*').eq('id', user.id).single();
         if (data) setUsuarioPerfil(data);
       };
       cargarPerfil();
@@ -66,19 +66,16 @@ export default function Dashboard() {
       } else {
         const verificarPassword = async () => {
           try {
-            const res = await fetch('https://deftutfyjpdlneiyzejm.supabase.co/auth/v1/token?grant_type=password', {
+            const res = await fetch(`${BASE_URL}/api/auth/login/`, {
               method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRlZnR1dGZ5anBkbG5laXl6ZWptIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIxMTU1MzEsImV4cCI6MjA4NzY5MTUzMX0.LHP2e4eZ-CIwHvKMCQhKXK-TOH6XJBvK7si9E_DBGSA'
-              },
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
               body: JSON.stringify({
                 email: user.email,
                 password: 'Cti1234'
               })
             });
-            const data = await res.json();
-            if (data.access_token) {
+            if (res.ok) {
               setTienePasswordDefault(true);
               setModalMandatorioOpen(true);
               sessionStorage.setItem('has_pwd_warning_' + user.id, '1');
@@ -104,7 +101,7 @@ export default function Dashboard() {
     if (!user) return;
 
     const cargarNotificaciones = async () => {
-      const { data: notifs } = await supabase
+      const { data: notifs } = await api
         .from('notificaciones')
         .select('ticket_id')
         .eq('usuario_id', user.id)
@@ -117,7 +114,7 @@ export default function Dashboard() {
           return;
         }
 
-        const { data: ticketsData } = await supabase
+        const { data: ticketsData } = await api
           .from('tickets')
           .select('id, tablero_id')
           .in('id', ticketIds);
@@ -139,23 +136,11 @@ export default function Dashboard() {
 
     cargarNotificaciones();
 
-    const sub = supabase.channel('notifs_dashboard')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'notificaciones' }, payload => {
-        cargarNotificaciones();
-      })
-      .subscribe();
+    const interval = setInterval(() => {
+      cargarNotificaciones();
+    }, 30000);
 
-    // Subscribe to ticket changes to update the "Activity" timestamp dynamically
-    const subTickets = supabase.channel('dashboard_tickets_activity')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tickets' }, payload => {
-        cargarTableros();
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(sub);
-      supabase.removeChannel(subTickets);
-    };
+    return () => clearInterval(interval);
   }, [user]);
 
   const handleCambiarPassword = async (e) => {
@@ -165,7 +150,7 @@ export default function Dashboard() {
       return;
     }
     setCambiandoReq(true);
-    const { error } = await supabase.auth.updateUser({
+    const { error } = await api.auth.updateUser({
       password: passwordForm.nueva
     });
     setCambiandoReq(false);
@@ -190,8 +175,7 @@ export default function Dashboard() {
     if (!user) return;
     setLoading(true);
 
-    // Obtenemos los IDs de los tableros a los que pertenece el usuario
-    const { data: tableroUsuarios, error: errTU } = await supabase
+    const { data: tableroUsuarios, error: errTU } = await api
       .from('tablero_usuarios')
       .select('tablero_id')
       .eq('usuario_id', user.id);
@@ -210,8 +194,7 @@ export default function Dashboard() {
 
     const tableroIds = tableroUsuarios.map(tu => tu.tablero_id);
 
-    // Obtenemos la información de esos tableros
-    const { data: tablerosData, error: errT } = await supabase
+    const { data: tablerosData, error: errT } = await api
       .from('tableros')
       .select('*')
       .in('id', tableroIds)
@@ -234,9 +217,8 @@ export default function Dashboard() {
         });
       }
 
-      // Añadir la fecha de la última actividad a cada tablero
       for (const t of sortedTableros) {
-        const { data: latestTicket } = await supabase
+        const { data: latestTicket } = await api
           .from('tickets')
           .select('fecha_creacion')
           .eq('tablero_id', t.id)
@@ -333,7 +315,7 @@ export default function Dashboard() {
     if (tableroEditando) {
       const viejas = tableroEditando.columnas || ['Solicitud', 'En proceso', 'En espera', 'Resuelto'];
 
-      const { error: errUpdate } = await supabase
+      const { error: errUpdate } = await api
         .from('tableros')
         .update({ nombre: nuevoNombre.trim(), descripcion: descEncoded, tipo: nuevoTipo, columnas: columnasFinales })
         .eq('id', tableroEditando.id);
@@ -343,13 +325,12 @@ export default function Dashboard() {
         return;
       }
 
-      // 1. Si una columna fue renombrada explícitamente (misma cantidad de columnas y el nombre viejo ya no existe en el tablero)
       if (viejas.length === columnasFinales.length) {
         for (let i = 0; i < viejas.length; i++) {
           const oldName = viejas[i];
           const newName = columnasFinales[i];
           if (oldName !== newName && !columnasFinales.includes(oldName) && !viejas.includes(newName)) {
-            await supabase
+            await api
               .from('tickets')
               .update({ estado: newName })
               .eq('tablero_id', tableroEditando.id)
@@ -358,12 +339,11 @@ export default function Dashboard() {
         }
       }
 
-      // 2. Si se eliminó una columna, los tickets huérfanos se mueven únicamente a la primera columna
-      const { data: lostTickets } = await supabase.from('tickets').select('id, estado').eq('tablero_id', tableroEditando.id);
+      const { data: lostTickets } = await api.from('tickets').select('id, estado').eq('tablero_id', tableroEditando.id);
       if (lostTickets) {
         const orphans = lostTickets.filter(t => !columnasFinales.includes(t.estado));
         if (orphans.length > 0) {
-          await supabase
+          await api
             .from('tickets')
             .update({ estado: columnasFinales[0] })
             .eq('tablero_id', tableroEditando.id)
@@ -372,7 +352,7 @@ export default function Dashboard() {
       }
 
     } else {
-      const { data: newBoard, error: errInsert } = await supabase
+      const { data: newBoard, error: errInsert } = await api
         .from('tableros')
         .insert([{
           nombre: nuevoNombre.trim(),
@@ -389,8 +369,7 @@ export default function Dashboard() {
         return;
       }
 
-      // Automatically add creator as Admin
-      await supabase
+      await api
         .from('tablero_usuarios')
         .insert([{
           tablero_id: newBoard.id,
@@ -409,7 +388,7 @@ export default function Dashboard() {
 
   const handleEliminarTablero = async (tableroId) => {
     if (window.confirm('¿Estás seguro de que quieres eliminar este tablero? Esta acción no se puede deshacer y se perderán todos los tickets y datos asociados.')) {
-      const { error } = await supabase
+      const { error } = await api
         .from('tableros')
         .delete()
         .eq('id', tableroId);

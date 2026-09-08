@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+  ticket-web:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend.dev
+    volumes:
+      - .:/app
+      - /app/node_modules
+    ports:
+      - "8070:5173"
+    depends_on:
+      - ticket-api
+    networks:
+      - ticket-net
+    restart: unless-stopped
+
+  ticket-api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    volumes:
+      - ./backend:/app
+    depends_on:
+      ticket-db:
+        condition: service_healthy
+    networks:
+      - ticket-net
+    restart: unless-stopped
+    command: python manage.py runserver 0.0.0.0:8000
+
+  ticket-db:
+    image: mariadb:11.6
+    env_file:
+      - .env
+    volumes:
+      - mariadb_data:/var/lib/mysql
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - ticket-net
+
+  ticket-pma:
+    container_name: ticket-pma
+    image: phpmyadmin:latest
+    restart: unless-stopped
+    environment:
+      PMA_HOST: ticket-db
+      PMA_PORT: 3306
+      PMA_ARBITRARY: "1"
+      UPLOAD_LIMIT: 64M
+    ports:
+      - "8170:80"
+    depends_on:
+      ticket-db:
+        condition: service_healthy
+    networks:
+      - ticket-net
+
+volumes:
+  mariadb_data:
+
+networks:
+  ticket-net:

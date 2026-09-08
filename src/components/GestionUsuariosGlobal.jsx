@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../supabase';
+import api from '../api';
 
 export default function GestionUsuariosGlobal({ isOpen, onClose }) {
   const [usuarios, setUsuarios] = useState([]);
@@ -12,7 +12,7 @@ export default function GestionUsuariosGlobal({ isOpen, onClose }) {
 
   const fetchUsuarios = async () => {
     if (!isOpen) return;
-    const { data, error } = await supabase.from('usuarios').select('*').order('nombre');
+    const { data, error } = await api.from('usuarios').select('*').order('nombre');
     if (!error && data) {
       setUsuarios(data);
     }
@@ -30,53 +30,28 @@ export default function GestionUsuariosGlobal({ isOpen, onClose }) {
     }
 
     try {
-      const { createClient } = await import('@supabase/supabase-js');
-      const authSupabase = createClient(
-        'https://deftutfyjpdlneiyzejm.supabase.co',
-        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRlZnR1dGZ5anBkbG5laXl6ZWptIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIxMTU1MzEsImV4cCI6MjA4NzY5MTUzMX0.LHP2e4eZ-CIwHvKMCQhKXK-TOH6XJBvK7si9E_DBGSA',
-        { auth: { persistSession: false, storageKey: 'dummy-admin-key' } }
-      );
-
-      const { data: authData, error: authError } = await authSupabase.auth.signUp({
+      const { data, error } = await api.from('usuarios').insert([{
         email: formUsuario.email,
-        password: 'Cti1234',
-      });
+        nombre: formUsuario.nombre,
+        dependencia: formUsuario.dependencia,
+        piso: formUsuario.piso,
+        rol: formUsuario.rol,
+        activo: true
+      }]);
 
-      if (authError) {
-        if (authError.message.includes('registered')) {
-          alert(`⚠️ EL CORREO YA ESTÁ EN USO (Usuario Oculto)\n\nEl correo "${formUsuario.email}" pertenece a un usuario que eliminaste de esta lista, pero Supabase NO lo elimina automáticamente de su registro de Autenticación por medidas de seguridad.\n\nCÓMO ARREGLARLO:\n1. Entra a tu panel de Supabase en tu navegador.\n2. Ve al menú "Authentication" -> sección "Users".\n3. Busca el correo "${formUsuario.email}".\n4. Presiona los 3 puntitos y elige "Delete user".\n\nUna vez eliminado de allí, podrás volver a crearlo aquí sin problema.`);
-          return;
-        }
-        alert(`Error al crear la cuenta: ${authError.message}`);
+      if (error) {
+        console.error('Error creating user:', error);
+        alert(`Error al crear el usuario: ${error.message || 'Error desconocido'}`);
         return;
       }
 
-      const { data, error } = await supabase
-        .from('usuarios')
-        .insert([{
-          id: authData.user.id,
-          nombre: formUsuario.nombre,
-          email: formUsuario.email,
-          dependencia: formUsuario.dependencia,
-          piso: formUsuario.piso,
-          rol: formUsuario.rol
-        }])
-        .select();
-
-      if (error) {
-        alert("Error al insertar perfil en BD");
-      }
-
-      if (!error && data && data.length > 0) {
-        setFormUsuario({ nombre: '', email: '', dependencia: '', piso: '', rol: 'Usuario' });
-        setUsuarios(prev => {
-          const nuevosUsuarios = [...prev, data[0]];
-          return nuevosUsuarios.sort((a, b) => a.nombre.localeCompare(b.nombre));
-        });
-        alert(`Usuario creado con éxito.\nContraseña temporal secreta: Cti1234`);
-      }
-    } catch (e) {
-      alert("Ocurrió un error inesperado al crear el usuario.");
+      setShowForm(false);
+      setFormUsuario({ nombre: '', email: '', dependencia: '', piso: '', rol: 'Usuario' });
+      alert(`¡Usuario creado exitosamente!\n\nNombre: ${formUsuario.nombre}\nCorreo: ${formUsuario.email}\nContraseña inicial: Cti1234\nRol asignado: ${formUsuario.rol}\n\nEl usuario debe cambiar su contraseña en el primer inicio de sesión.`);
+      await fetchUsuarios();
+    } catch (error) {
+      console.error('Error creating user:', error);
+      alert(`Error inesperado al crear el usuario: ${error.message}`);
     }
   };
 
@@ -103,10 +78,7 @@ export default function GestionUsuariosGlobal({ isOpen, onClose }) {
     setEditandoId(null);
     setFormDataEdicion({});
 
-    const { error } = await supabase
-      .from('usuarios')
-      .update(cambios)
-      .eq('id', userId);
+    const { error } = await api.from('usuarios').update(cambios).eq('id', userId);
 
     if (error) {
       alert('Error al guardar los cambios en la base de datos.');
@@ -116,7 +88,7 @@ export default function GestionUsuariosGlobal({ isOpen, onClose }) {
 
   const handleEliminarUsuario = async () => {
     if (!usuarioAEliminar) return;
-    const { error } = await supabase.from('usuarios').delete().eq('id', usuarioAEliminar.id);
+    const { error } = await api.from('usuarios').delete().eq('id', usuarioAEliminar.id);
     if (error) {
       alert('Error al eliminar usuario de la base de datos. Puede que tenga tickets asignados.');
     } else {

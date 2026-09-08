@@ -1,0 +1,8 @@
+SET NAMES utf8mb4;
+SET CHARACTER SET utf8mb4;
+
+CREATE DATABASE IF NOT EXISTS ticketera CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+CREATE USER IF NOT EXISTS 'ticketera'@'%' IDENTIFIED BY 'ticketera';
+GRANT ALL PRIVILEGES ON ticketera.* TO 'ticketera'@'%';
+FLUSH PRIVILEGES;

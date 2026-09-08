@@ -1,94 +1,63 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { supabase } from '../supabase';
+import api from '../api';
 
 const AuthContext = createContext({});
 
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
-    const [session, setSession] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [isRecovery, setIsRecovery] = useState(false);
 
-    const fetchUserProfile = async (sessionUser) => {
-        if (!sessionUser) {
-            setUser(null);
-            setLoading(false);
-            return;
-        }
-
+    const fetchUserProfile = async () => {
         try {
-            const { data, error } = await supabase
-                .from('usuarios')
-                .select('*')
-                .eq('id', sessionUser.id)
-                .single();
-
-            if (error) {
-                console.error("No se pudo obtener el perfil de usuario:", error);
-                setUser(sessionUser); // Fallback to basic session
+            const { data, error } = await api.auth.getSession();
+            if (error || !data.session) {
+                setUser(null);
             } else {
-                // Mezclamos la data de Auth con la tabla usuarios, inyectando el ROL y asegurando que el email sea el de Auth
-                setUser({ ...sessionUser, ...data, email: sessionUser.email });
+                const userData = data.session.user;
+                const perfil = await api.from('usuarios').eq('id', userData.id).select().single();
+                setUser({ ...userData, ...perfil.data });
             }
         } catch (err) {
-            console.error("Error inesperado obteniendo perfil de auth:", err);
-            setUser(sessionUser);
+            console.error("Error obteniendo perfil:", err);
+            setUser(null);
         } finally {
             setLoading(false);
         }
     };
 
     useEffect(() => {
-        // Obtener la sesión actual al cargar
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            setSession(session);
-            fetchUserProfile(session?.user);
-        });
-
-        // Escuchar cambios de autenticación (login, logout, token refresh)
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-            if (_event === 'PASSWORD_RECOVERY') {
-                setIsRecovery(true);
-            }
-            setLoading(true); // Evitar parpadeos de UI
-            setSession(session);
-            fetchUserProfile(session?.user);
-        });
-
-        return () => subscription.unsubscribe();
+        fetchUserProfile();
     }, []);
 
-    // Funciones de ayuda
     const login = async (email, password) => {
-        return await supabase.auth.signInWithPassword({ email, password });
+        const { data, error } = await api.auth.signInWithPassword({ email, password });
+        if (error) return { error };
+        const userData = data.user;
+        const perfil = await api.from('usuarios').eq('id', userData.id).select().single();
+        setUser({ ...userData, ...perfil.data });
+        return { error: null };
     };
 
     const registro = async (email, password, nombreData) => {
-        const { data, error } = await supabase.auth.signUp({
+        const { data, error } = await api.auth.signUp({
             email,
             password,
-            // Aunque creamos al usuario en auth, también guardaremos sus datos extra
-            options: {
-                data: {
-                    nombre_completo: nombreData
-                }
-            }
+            data: { nombre_completo: nombreData }
         });
         return { data, error };
     };
 
     const logout = async () => {
-        return await supabase.auth.signOut();
+        await api.auth.signOut();
+        setUser(null);
     };
 
     const resetPasswordForEmail = async (email) => {
-        return await supabase.auth.resetPasswordForEmail(email, {
-            redirectTo: window.location.origin + '/login',
-        });
+        return await api.auth.resetPasswordForEmail(email);
     };
 
     return (
-        <AuthContext.Provider value={{ user, session, login, registro, logout, resetPasswordForEmail, loading, isRecovery }}>
+        <AuthContext.Provider value={{ user, login, registro, logout, resetPasswordForEmail, loading }}>
             {!loading && children}
         </AuthContext.Provider>
     );

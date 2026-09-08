@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
+import api from '../api';
 
 export default function Login() {
     const [email, setEmail] = useState('');
@@ -13,25 +14,18 @@ export default function Login() {
     const [newPassword, setNewPassword] = useState('');
     const [confirmNewPassword, setConfirmNewPassword] = useState('');
 
-    const { login, user, isRecovery, resetPasswordForEmail } = useAuth();
+    const { login, user, resetPasswordForEmail } = useAuth();
     const navigate = useNavigate();
 
-    // Prevent fully authenticated users from staying on the login page (unless actively changing passwords)
+    // Redirect authenticated users to dashboard
     useEffect(() => {
-        if (isRecovery) {
-            setRequiresPasswordChange(true);
-            return;
-        }
-
         if (user && !requiresPasswordChange && !loading) {
-            // Only navigate if we're absolutely certain they're not in the password-change flow.
-            // Using a short timeout ensures any pending state updates for requiresPasswordChange have settled.
             const timeoutId = setTimeout(() => {
-                if (!requiresPasswordChange && !isRecovery) navigate('/');
+                if (!requiresPasswordChange) navigate('/');
             }, 100);
             return () => clearTimeout(timeoutId);
         }
-    }, [user, navigate, requiresPasswordChange, loading, isRecovery]);
+    }, [user, navigate, requiresPasswordChange, loading]);
 
     const handleForgotPassword = async (e) => {
         e.preventDefault();
@@ -98,21 +92,12 @@ export default function Login() {
         setLoading(true);
         setErrorMsg('');
 
-        const { createClient } = await import('@supabase/supabase-js');
-        const supabase = createClient(
-            'https://deftutfyjpdlneiyzejm.supabase.co',
-            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRlZnR1dGZ5anBkbG5laXl6ZWptIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIxMTU1MzEsImV4cCI6MjA4NzY5MTUzMX0.LHP2e4eZ-CIwHvKMCQhKXK-TOH6XJBvK7si9E_DBGSA'
-        );
-
-        const { error } = await supabase.auth.updateUser({
-            password: newPassword
-        });
+        const { error } = await api.auth.updateUser({ password: newPassword });
 
         if (error) {
             setErrorMsg('Error al actualizar la contraseña: ' + error.message);
             setLoading(false);
         } else {
-            // Password updated successfully, redirect to dashboard
             navigate('/');
         }
     };
@@ -182,7 +167,7 @@ export default function Login() {
                     {requiresPasswordChange ? (
                         <form onSubmit={handlePasswordChange} className="space-y-6">
                             <div className="mb-4 p-4 bg-yellow-50 text-yellow-800 rounded-2xl text-sm font-semibold border border-yellow-200">
-                                {isRecovery ? 'Establece tu nueva contraseña segura antes de continuar.' : 'Por seguridad, debes cambiar la contraseña temporal proporcionada por el administrador antes de continuar.'}
+                                Por seguridad, debes cambiar la contraseña temporal proporcionada por el administrador antes de continuar.
                             </div>
                             <div>
                                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Nueva Contraseña</label>

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
-import { supabase } from '../supabase';
+import api from '../api';
 import { useAuth } from '../context/AuthContext';
 import { parseTableroConfig } from '../utils/configTablero';
 import EstadisticasPanel from './EstadisticasPanel';
@@ -612,7 +612,7 @@ export default function TableroKanban() {
   });
 
   const fetchComentarios = async (ticketId) => {
-    const { data, error } = await supabase
+    const { data, error } = await api
       .from('comentarios')
       .select('*')
       .eq('ticket_id', ticketId)
@@ -633,7 +633,7 @@ export default function TableroKanban() {
       const notifPendientes = notificaciones.filter(n => n.ticket_id === ticket.id);
       if (notifPendientes.length > 0) {
         setNotificaciones(prev => prev.filter(n => n.ticket_id !== ticket.id));
-        supabase.from('notificaciones')
+        api.from('notificaciones')
           .update({ leida: true })
           .eq('usuario_id', user.id)
           .eq('ticket_id', ticket.id)
@@ -775,38 +775,14 @@ export default function TableroKanban() {
   useEffect(() => {
     fetchData();
 
-    // Suscribirse a inserciones automáticas de tickets, usuarios y comentarios
-    const subscription = supabase
-      .channel('schema-db-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tickets' }, () => {
-        fetchData();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'usuarios' }, () => {
-        fetchData();
-      })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'comentarios' }, (payload) => {
-        // Solo agregar el comentario si pertenece al ticket que tenemos abierto
-        if (ticketActivoRef.current && payload.new.ticket_id === ticketActivoRef.current.id) {
-          // Refetch de los comentarios para traer el perfil del usuario (JOIN)
-          fetchComentarios(ticketActivoRef.current.id);
-        }
-      })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notificaciones' }, (payload) => {
-        if (user && payload.new.usuario_id === user.id && !payload.new.leida) {
-          setNotificaciones(prev => [payload.new, ...prev]);
-        }
-      })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'notificaciones' }, (payload) => {
-        if (user && payload.new.usuario_id === user.id) {
-          if (payload.new.leida) {
-            setNotificaciones(prev => prev.filter(n => n.id !== payload.new.id));
-          }
-        }
-      })
-      .subscribe();
+    // Polling interval to simulate realtime updates
+    const interval = setInterval(() => {
+      fetchData();
+      fetchNotificaciones();
+    }, 30000);
 
     return () => {
-      supabase.removeChannel(subscription);
+      clearInterval(interval);
     };
   }, []); // Dependencias vacías al usar ticketActivoRef
 
@@ -818,7 +794,7 @@ export default function TableroKanban() {
     const prevComentarios = [...comentarios];
     setComentarios(prev => prev.filter(c => c.id !== comentarioId));
 
-    const { error } = await supabase.from('comentarios').delete().eq('id', comentarioId);
+    const { error } = await api.from('comentarios').delete().eq('id', comentarioId);
     if (error) {
       console.error("Error eliminando comentario", error);
       alert("No se pudo eliminar el comentario: " + error.message);
@@ -834,7 +810,7 @@ export default function TableroKanban() {
     setComentarios(prev => prev.map(c => c.id === comentarioId ? { ...c, texto: textoEditado.trim() } : c));
     setComentarioAEditar(null);
 
-    const { error } = await supabase.from('comentarios').update({ texto: textoEditado.trim() }).eq('id', comentarioId);
+    const { error } = await api.from('comentarios').update({ texto: textoEditado.trim() }).eq('id', comentarioId);
     if (error) {
       console.error("Error editando comentario", error);
       alert("No se pudo editar el comentario: " + error.message);
@@ -847,7 +823,7 @@ export default function TableroKanban() {
     setLoading(true);
 
     // 1. Cargar el tablero actual y validar acceso
-    const { data: tablero, error: tableroErr } = await supabase
+    const { data: tablero, error: tableroErr } = await api
       .from('tableros')
       .select('*')
       .eq('id', tableroId)
@@ -859,7 +835,7 @@ export default function TableroKanban() {
       return;
     }
 
-    const { data: perfilGlobal } = await supabase
+    const { data: perfilGlobal } = await api
       .from('usuarios')
       .select('rol')
       .eq('id', user.id)
@@ -867,7 +843,7 @@ export default function TableroKanban() {
 
     const isGlobalAdmin = perfilGlobal?.rol === 'Administrador';
 
-    const { data: membresia, error: memErr } = await supabase
+    const { data: membresia, error: memErr } = await api
       .from('tablero_usuarios')
       .select('*')
       .eq('tablero_id', tableroId)
@@ -884,9 +860,9 @@ export default function TableroKanban() {
 
     // 2. Cargar tickets, usuarios y membresias del tablero
     const [ticketsRes, usuariosRes, membresiasRes] = await Promise.all([
-      supabase.from('tickets').select('*').eq('tablero_id', tableroId).order('fecha_creacion', { ascending: false }),
-      supabase.from('usuarios').select('*').order('nombre', { ascending: true }),
-      supabase.from('tablero_usuarios').select('*').eq('tablero_id', tableroId)
+      api.from('tickets').select('*').eq('tablero_id', tableroId).order('fecha_creacion', { ascending: false }),
+      api.from('usuarios').select('*').order('nombre', { ascending: true }),
+      api.from('tablero_usuarios').select('*').eq('tablero_id', tableroId)
     ]);
 
     if (!ticketsRes.error && ticketsRes.data) {
@@ -924,7 +900,7 @@ export default function TableroKanban() {
 
   const fetchNotificaciones = async () => {
     if (!user) return;
-    const { data, error } = await supabase
+    const { data, error } = await api
       .from('notificaciones')
       .select('*')
       .eq('usuario_id', user.id)
@@ -1019,7 +995,7 @@ export default function TableroKanban() {
 
     // Actualizamos asíncronamente en Supabase
     try {
-      const { error } = await supabase
+      const { error } = await api
         .from('tickets')
         .update({
           estado: estadoNuevo,
@@ -1031,7 +1007,7 @@ export default function TableroKanban() {
 
       // Generar comentario de auditoría (Trazabilidad) si cambió de estado
       if (estadoNuevo !== estadoPrevio && user) {
-        supabase.from('comentarios').insert([{
+        api.from('comentarios').insert([{
           ticket_id: ticketToMove.id,
           usuario_id: user.id,
           texto: `[AUDITORÍA]: Ticket movido de "${estadoPrevio}" a "${estadoNuevo}".`
@@ -1054,7 +1030,7 @@ export default function TableroKanban() {
     if (user) {
       const isResuelto = ticketAResolver.targetState === 'Resuelto';
       const prefix = isResuelto ? '[RESOLUCIÓN OFICIAL]' : '[AUDITORÍA]';
-      const { error: errCom } = await supabase.from('comentarios').insert([{
+      const { error: errCom } = await api.from('comentarios').insert([{
         ticket_id: ticketAResolver.id,
         usuario_id: user.id,
         texto: `${prefix}: ${resolucionTexto.trim()}`
@@ -1080,7 +1056,7 @@ export default function TableroKanban() {
     }
 
     try {
-      const { error } = await supabase
+      const { error } = await api
         .from('tickets')
         .update({
           estado: ticketAResolver.targetState || 'Resuelto',
@@ -1127,17 +1103,17 @@ export default function TableroKanban() {
     setTickets(localTickets);
 
     try {
-      const { error } = await supabase.from('tickets').update({ estado: estadoNuevo, fecha_creacion: isoNewDate }).eq('id', ticketToResolve.id);
+      const { error } = await api.from('tickets').update({ estado: estadoNuevo, fecha_creacion: isoNewDate }).eq('id', ticketToResolve.id);
       if (error) throw error;
 
-      const { error: errCom } = await supabase.from('comentarios').insert([{
+      const { error: errCom } = await api.from('comentarios').insert([{
         ticket_id: ticketToResolve.id,
         usuario_id: user.id,
         texto: `RESOLUCIÓN OFICIAL: Resuelto`
       }]);
       if (errCom) console.error("Error guardando resolución rápida en DB:", errCom);
 
-      const { error: auditError } = await supabase.from('comentarios').insert([{
+      const { error: auditError } = await api.from('comentarios').insert([{
         ticket_id: ticketToResolve.id,
         usuario_id: user.id,
         texto: `[AUDITORÍA]: El ticket fue movido de "${estadoPrevio}" a "${estadoNuevo}" `
@@ -1189,7 +1165,7 @@ export default function TableroKanban() {
           updatePayload.email_solicitante = email_solicitante.trim();
         }
 
-        let res = await supabase
+        let res = await api
           .from('tickets')
           .update(updatePayload)
           .eq('id', id)
@@ -1201,7 +1177,7 @@ export default function TableroKanban() {
         // Fallback si la columna 'email_solicitante' no existe en Supabase DB
         if (error && error.message?.includes('email_solicitante')) {
           delete updatePayload.email_solicitante;
-          res = await supabase
+          res = await api
             .from('tickets')
             .update(updatePayload)
             .eq('id', id)
@@ -1220,7 +1196,7 @@ export default function TableroKanban() {
           if (ticketViejo.responsable !== responsable) cambios.push(`Responsable: ${ticketViejo.responsable || 'Sin asignar'} ➔ ${responsable || 'Sin asignar'}`);
 
           if (cambios.length > 0) {
-            supabase.from('comentarios').insert([{
+            api.from('comentarios').insert([{
               ticket_id: id,
               usuario_id: user.id,
               texto: `[AUDITORÍA]: Se editó el ticket.\n- ${cambios.join('\n- ')}`
@@ -1262,7 +1238,7 @@ export default function TableroKanban() {
           payload.email_solicitante = email_solicitante.trim();
         }
 
-        let res = await supabase
+        let res = await api
           .from('tickets')
           .insert([payload])
           .select();
@@ -1275,7 +1251,7 @@ export default function TableroKanban() {
           console.warn("Reintentando creación sin la columna 'email_solicitante'...", error);
           const payloadSinEmail = { ...payload };
           delete payloadSinEmail.email_solicitante;
-          res = await supabase
+          res = await api
             .from('tickets')
             .insert([payloadSinEmail])
             .select();
@@ -1288,7 +1264,7 @@ export default function TableroKanban() {
           console.warn("Reintentando creación con estado 'Pendiente'...", error);
           const payloadSinEmail = { ...payload, estado: 'Pendiente' };
           delete payloadSinEmail.email_solicitante;
-          res = await supabase
+          res = await api
             .from('tickets')
             .insert([payloadSinEmail])
             .select();
@@ -1303,7 +1279,7 @@ export default function TableroKanban() {
           const textoAuditoria = `[AUDITORÍA]: Ticket creado por ${creadorNombre}${infoSolicitante}.`;
 
           // Registrar trazabilidad de creación en la auditoría
-          supabase.from('comentarios').insert([{
+          api.from('comentarios').insert([{
             ticket_id: nuevoTicketId,
             usuario_id: user.id,
             texto: textoAuditoria
@@ -1347,7 +1323,7 @@ export default function TableroKanban() {
 
             if (notificacionesPayload.length > 0) {
               // Fire and forget, no bloqueamos la interfaz
-              supabase.from('notificaciones').insert(notificacionesPayload).then(({ error: notifError }) => {
+              api.from('notificaciones').insert(notificacionesPayload).then(({ error: notifError }) => {
                 if (notifError) console.error("Error al despachar notificaciones:", notifError);
               });
             }
@@ -1395,40 +1371,10 @@ export default function TableroKanban() {
     }
 
     try {
-      console.log("Creando cliente aislado de supabase...");
-      // Usamos una instancia aislada para no interferir con la sesión actual del Administrador
-      const { createClient } = await import('@supabase/supabase-js');
-      const authSupabase = createClient(
-        'https://deftutfyjpdlneiyzejm.supabase.co',
-        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRlZnR1dGZ5anBkbG5laXl6ZWptIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIxMTU1MzEsImV4cCI6MjA4NzY5MTUzMX0.LHP2e4eZ-CIwHvKMCQhKXK-TOH6XJBvK7si9E_DBGSA',
-        { auth: { persistSession: false, storageKey: 'dummy-admin-key' } }
-      );
-
-      console.log("Paso 1: Llamando auth.signUp...");
-      // 1. Crear usuario en Auth con constraseña temporal
-      const { data: authData, error: authError } = await authSupabase.auth.signUp({
-        email: formUsuario.email,
-        password: 'Cti1234',
-      });
-
-      if (authError) {
-        if (authError.message.includes('registered')) {
-          alert(`⚠️ EL CORREO YA ESTÁ EN USO (Usuario Oculto)\n\nEl correo "${formUsuario.email}" pertenece a un usuario que eliminaste de esta lista, pero Supabase NO lo elimina automáticamente de su registro de Autenticación por medidas de seguridad.\n\nCÓMO ARREGLARLO:\n1. Entra a tu panel de Supabase en tu navegador.\n2. Ve al menú "Authentication" -> sección "Users".\n3. Busca el correo "${formUsuario.email}".\n4. Presiona los 3 puntitos y elige "Delete user".\n\nUna vez eliminado de allí, podrás volver a crearlo aquí sin problema.`);
-          return;
-        }
-        console.error("❌ Error creating auth user:", authError);
-        alert(`Error al crear la cuenta: ${authError.message}`);
-        return;
-      }
-
-      console.log("✅ Usuario auth creado:", authData.user.id);
-      console.log("Paso 2: Insertando en tabla pública...");
-
-      // 2. Insertar en la tabla pública de usuarios (el trigger del backend también podría hacerlo, pero lo hacemos manual por los campos extra)
-      const { data, error } = await supabase
+      // Crear usuario directamente en la tabla usuarios (el backend maneja auth)
+      const { data, error } = await api
         .from('usuarios')
         .insert([{
-          id: authData.user.id,
           nombre: formUsuario.nombre,
           email: formUsuario.email,
           dependencia: formUsuario.dependencia,
@@ -1438,23 +1384,22 @@ export default function TableroKanban() {
         .select();
 
       if (error) {
-        console.error("❌ Error inserting public profile:", error);
-        // Podríamos intentar borrar el auth user aquí para compensar, pero dejémoslo simple
-        alert("Error al insertar perfil en BD");
+        console.error("Error inserting user:", error);
+        alert("Error al insertar usuario: " + error.message);
+        return;
       }
 
-      if (!error && data && data.length > 0) {
-        console.log("✅ Perfil insertado exitosamente!", data[0]);
+      if (data && data.length > 0) {
+        console.log("Usuario creado exitosamente!", data[0]);
         setFormUsuario({ nombre: '', email: '', dependencia: '', piso: '', rol: 'Soporte Tecnico' });
-        // Actualizamos el estado local inmediatamente
         setUsuarios(prev => {
           const nuevosUsuarios = [...prev, data[0]];
           return nuevosUsuarios.sort((a, b) => a.nombre.localeCompare(b.nombre));
         });
-        alert(`Usuario creado con éxito.\nContraseña temporal secreta: Cti1234`);
+        alert(`Usuario creado con éxito.\nContraseña temporal: Cti1234`);
       }
     } catch (e) {
-      console.error("❌ Catch error:", e);
+      console.error("Error inesperado al crear el usuario:", e);
       alert("Ocurrió un error inesperado al crear el usuario.");
     }
   };
@@ -1465,7 +1410,7 @@ export default function TableroKanban() {
     if (!usuarioAEliminar) return;
 
     // Usamos .select() para verificar si la base de datos realmente eliminó la fila
-    const { data, error } = await supabase
+    const { data, error } = await api
       .from('usuarios')
       .delete()
       .eq('id', usuarioAEliminar.id)
@@ -1491,7 +1436,7 @@ export default function TableroKanban() {
     const uAA = usuarios.find(usr => usr.id === usuarioAAñadir);
     const defaultPerms = uAA?.rol === 'Soporte' ? PERMISOS_DEFAULT['Soporte Tecnico'] : PERMISOS_DEFAULT['Usuario'];
 
-    const { error } = await supabase
+    const { error } = await api
       .from('tablero_usuarios')
       .insert([
         {
@@ -1515,7 +1460,7 @@ export default function TableroKanban() {
   const handleEliminarMiembro = async () => {
     if (!usuarioAEliminar) return;
 
-    const { error } = await supabase
+    const { error } = await api
       .from('tablero_usuarios')
       .delete()
       .eq('tablero_id', tableroId)
@@ -1536,7 +1481,7 @@ export default function TableroKanban() {
     setUsuarios(prev => prev.map(u => u.id === userId ? { ...u, rol_en_tablero: nuevoRol } : u));
     setRolesEditados(prev => { const temp = { ...prev }; delete temp[userId]; return temp; });
 
-    const { error } = await supabase
+    const { error } = await api
       .from('tablero_usuarios')
       .update({ rol_en_tablero: nuevoRol })
       .eq('tablero_id', tableroId)
@@ -1552,7 +1497,7 @@ export default function TableroKanban() {
   // Editar Permisos Granulares
   const handleGuardarPermisos = async (userId, nuevosPermisos) => {
     setUsuarios(prev => prev.map(u => u.id === userId ? { ...u, permisos_tablero: nuevosPermisos } : u));
-    const { error } = await supabase
+    const { error } = await api
       .from('tablero_usuarios')
       .update({ permisos: nuevosPermisos })
       .eq('tablero_id', tableroId)
@@ -1571,7 +1516,7 @@ export default function TableroKanban() {
     if (!ticketAEliminar) return;
 
     // Usamos .select() para verificar si la base de datos realmente eliminó la fila
-    const { data, error } = await supabase
+    const { data, error } = await api
       .from('tickets')
       .delete()
       .eq('id', ticketAEliminar.id)
@@ -1615,7 +1560,7 @@ export default function TableroKanban() {
       setTicketActivo(prev => ({ ...prev, checklist: updatedChecklist }));
     }
 
-    const { error } = await supabase.from('tickets').update({ checklist: updatedChecklist }).eq('id', ticketId);
+    const { error } = await api.from('tickets').update({ checklist: updatedChecklist }).eq('id', ticketId);
     if (error) console.error("Error al actualizar checklist:", error);
   };
 
@@ -1633,7 +1578,7 @@ export default function TableroKanban() {
     setTickets(prev => prev.map(t => t.id === ticketActivo.id ? { ...t, checklist: updatedChecklist } : t));
     setTicketActivo(prev => ({ ...prev, checklist: updatedChecklist }));
 
-    const { error } = await supabase.from('tickets').update({ checklist: updatedChecklist }).eq('id', ticketActivo.id);
+    const { error } = await api.from('tickets').update({ checklist: updatedChecklist }).eq('id', ticketActivo.id);
     if (error) console.error("Error al agregar al checklist:", error);
   };
 
@@ -1652,7 +1597,7 @@ export default function TableroKanban() {
       setTicketActivo(prev => ({ ...prev, checklist: updatedChecklist }));
     }
 
-    const { error } = await supabase.from('tickets').update({ checklist: updatedChecklist }).eq('id', ticketId);
+    const { error } = await api.from('tickets').update({ checklist: updatedChecklist }).eq('id', ticketId);
     if (error) console.error("Error al eliminar del checklist:", error);
   };
 
@@ -3074,7 +3019,7 @@ export default function TableroKanban() {
                           const fileExt = archivoSeleccionado.name.split('.').pop();
                           const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
 
-                          const { data: uploadData, error: uploadError } = await supabase.storage
+                          const { data: uploadData, error: uploadError } = await api.storage
                             .from('ticket-adjuntos')
                             .upload(fileName, archivoSeleccionado);
 
@@ -3085,7 +3030,7 @@ export default function TableroKanban() {
                             return;
                           }
 
-                          const { data: { publicUrl } } = supabase.storage
+                          const { data: { publicUrl } } = api.storage
                             .from('ticket-adjuntos')
                             .getPublicUrl(fileName);
 
@@ -3116,7 +3061,7 @@ export default function TableroKanban() {
                         setTimeout(() => mensajesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
 
                         // Guardamos en DB
-                        const { error } = await supabase.from('comentarios').insert([{
+                        const { error } = await api.from('comentarios').insert([{
                           ticket_id: ticketActivo.id,
                           usuario_id: user.id,
                           texto: textoInsert,
@@ -3202,7 +3147,7 @@ export default function TableroKanban() {
                       const fileExt = archivoSeleccionado.name.split('.').pop();
                       const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
 
-                      const { data: uploadData, error: uploadError } = await supabase.storage
+                      const { data: uploadData, error: uploadError } = await api.storage
                         .from('ticket-adjuntos')
                         .upload(fileName, archivoSeleccionado);
 
@@ -3213,7 +3158,7 @@ export default function TableroKanban() {
                         return;
                       }
 
-                      const { data: { publicUrl } } = supabase.storage
+                      const { data: { publicUrl } } = api.storage
                         .from('ticket-adjuntos')
                         .getPublicUrl(fileName);
 
@@ -3244,7 +3189,7 @@ export default function TableroKanban() {
                     setTimeout(() => mensajesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
 
                     // Guardamos en DB
-                    const { error } = await supabase.from('comentarios').insert([{
+                    const { error } = await api.from('comentarios').insert([{
                       ticket_id: ticketActivo.id,
                       usuario_id: user.id,
                       texto: textoInsert,
@@ -3530,7 +3475,7 @@ function NotificationItem({ n, tickets, setTicketActivo, setDetalleOpen, fetchCo
   const handleDismiss = (e) => {
     if (e) e.stopPropagation();
     setNotificaciones(prev => prev.filter(x => x.id !== n.id));
-    supabase.from('notificaciones').update({ leida: true }).eq('id', n.id).then(({ error }) => { if (error) console.error(error); });
+    api.from('notificaciones').update({ leida: true }).eq('id', n.id).then(({ error }) => { if (error) console.error(error); });
   };
 
   const handleClick = () => {
