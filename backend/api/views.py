@@ -144,9 +144,12 @@ def logout_view(request):
 
 
 @api_view(['GET'])
-@permission_classes([permissions.IsAuthenticated])
+@permission_classes([permissions.AllowAny])
 def me_view(request):
-    return Response(UsuarioSerializer(request.user).data)
+    if request.user and request.user.is_authenticated:
+        return Response(UsuarioSerializer(request.user).data)
+    return Response({'authenticated': False}, status=200)
+
 
 
 @api_view(['POST'])
@@ -157,8 +160,13 @@ def change_password_view(request):
     if not new_password or len(new_password) < 6:
         return Response({'error': 'La contraseña debe tener al menos 6 caracteres'}, status=400)
     user.set_password(new_password)
+    user.debe_cambiar_password = False
     user.save()
+    if hasattr(user, 'cambio_password_status'):
+        user.cambio_password_status.debe_cambiar = False
+        user.cambio_password_status.save()
     return Response({'status': 'ok'})
+
 
 
 @api_view(['POST'])

@@ -8,13 +8,19 @@ export const AuthProvider = ({ children }) => {
     const [loading, setLoading] = useState(true);
 
     const fetchUserProfile = async () => {
+        const isAuthRoute = ['/login', '/registro'].includes(window.location.pathname);
+        if (isAuthRoute) {
+            setUser(null);
+            setLoading(false);
+            return;
+        }
         try {
             const { data, error } = await api.auth.getSession();
             if (error || !data.session) {
                 setUser(null);
             } else {
                 const userData = data.session.user;
-                const perfil = await api.from('usuarios').eq('id', userData.id).select().single();
+                const perfil = await api.from('usuarios').single().eq('id', userData.id).select();
                 setUser({ ...userData, ...perfil.data });
             }
         } catch (err) {
@@ -33,8 +39,7 @@ export const AuthProvider = ({ children }) => {
         const { data, error } = await api.auth.signInWithPassword({ email, password });
         if (error) return { error };
         const userData = data.user;
-        alert(JSON.stringify(userData));
-        const perfil = await api.from('usuarios').eq('id', userData.id).select().single();
+        const perfil = await api.from('usuarios').single().eq('id', userData.id).select();
         setUser({ ...userData, ...perfil.data });
         return { error: null };
     };

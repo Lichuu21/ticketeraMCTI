@@ -1,11 +1,18 @@
 from rest_framework import serializers
-from core.models import Usuario, Tablero, TableroUsuario, Ticket, Comentario, Notificacion
+from core.models import Usuario, Tablero, TableroUsuario, Ticket, Comentario, Notificacion, CambioPassword
 
 
 class UsuarioSerializer(serializers.ModelSerializer):
     class Meta:
         model = Usuario
-        fields = ['id', 'username', 'email', 'nombre', 'dependencia', 'piso', 'rol']
+        fields = ['id', 'username', 'email', 'nombre', 'dependencia', 'piso', 'rol', 'debe_cambiar_password']
+
+
+class CambioPasswordSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CambioPassword
+        fields = '__all__'
+
 
 
 class TableroSerializer(serializers.ModelSerializer):

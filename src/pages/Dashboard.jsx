@@ -50,52 +50,17 @@ export default function Dashboard() {
     if (user?.id) {
       const cargarPerfil = async () => {
         const { data } = await api.from('usuarios').select('*').eq('id', user.id).single();
-        if (data) setUsuarioPerfil(data);
+        if (data) {
+          setUsuarioPerfil(data);
+          if (data.debe_cambiar_password) {
+            setTienePasswordDefault(true);
+            setModalMandatorioOpen(true);
+          } else {
+            setTienePasswordDefault(false);
+          }
+        }
       };
       cargarPerfil();
-    }
-
-    if (user?.email) {
-      const status = sessionStorage.getItem('has_pwd_warning_' + user.id);
-
-      if (status === '0') {
-        setTienePasswordDefault(false);
-      } else if (status === '1') {
-        setTienePasswordDefault(true);
-        setModalMandatorioOpen(true);
-      } else {
-        const verificarPassword = async () => {
-          try {
-            const defaults = ['Cti1234', 'EstoNoEsPass'];
-            let isDefault = false;
-            for (const pwd of defaults) {
-              const res = await fetch(`${BASE_URL}/api/auth/login/`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
-                body: JSON.stringify({ email: user.email, password: pwd })
-              });
-              if (res.ok) { isDefault = true; break; }
-            }
-            if (isDefault) {
-              setTienePasswordDefault(true);
-              setModalMandatorioOpen(true);
-              sessionStorage.setItem('has_pwd_warning_' + user.id, '1');
-            } else {
-              setTienePasswordDefault(false);
-              sessionStorage.setItem('has_pwd_warning_' + user.id, '0');
-            }
-          } catch (e) {
-            sessionStorage.setItem('has_pwd_warning_' + user.id, '0');
-          }
-        };
-
-        const checked = sessionStorage.getItem('checked_pwd_' + user.id);
-        if (!checked) {
-          sessionStorage.setItem('checked_pwd_' + user.id, '1');
-          verificarPassword();
-        }
-      }
     }
   }, [user]);
 

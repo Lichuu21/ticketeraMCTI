@@ -7,12 +7,25 @@ class Usuario(AbstractUser):
     dependencia = models.CharField(max_length=200, blank=True, default='')
     piso = models.CharField(max_length=50, blank=True, default='')
     rol = models.CharField(max_length=100, blank=True, default='Usuario')
+    debe_cambiar_password = models.BooleanField(default=True)
 
     class Meta:
         db_table = 'usuarios'
 
     def __str__(self):
         return self.nombre or self.email
+
+
+class CambioPassword(models.Model):
+    usuario = models.OneToOneField(Usuario, on_delete=models.CASCADE, related_name='cambio_password_status')
+    debe_cambiar = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = 'cambio_passwords'
+
+    def __str__(self):
+        return f"{self.usuario.username} - debe_cambiar: {self.debe_cambiar}"
+
 
 
 class Tablero(models.Model):

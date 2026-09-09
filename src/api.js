@@ -2,6 +2,7 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 export const BASE_URL = API_URL.replace('/api', '');
 
 async function apiRequest(method, path, body = null) {
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
   const opts = {
     method,
     credentials: 'include',
@@ -9,7 +10,7 @@ async function apiRequest(method, path, body = null) {
   };
   if (body) opts.body = JSON.stringify(body);
 
-  const res = await fetch(`${API_URL}${path}`, opts);
+  const res = await fetch(`${API_URL}${cleanPath}`, opts);
   const data = await res.json();
   if (!res.ok) {
     const err = new Error(data.error || data.detail || 'Error en la petición');
@@ -36,10 +37,12 @@ function buildQuery(params) {
 
 class QueryBuilder {
   constructor(endpoint) {
-    this._endpoint = endpoint;
+    const clean = endpoint.replace(/^\/+|\/+$/g, '');
+    this._endpoint = clean ? `${clean}/` : '';
     this._filters = {};
     this._ordering = null;
     this._single = false;
+    this._limit = null;
   }
 
   eq(col, val) { this._filters[col] = val; return this; }
@@ -58,57 +61,112 @@ class QueryBuilder {
     return this;
   }
 
-  async select(fields = '*') {
-    const params = { ...this._filters };
-    if (this._ordering) params.ordering = this._ordering;
-    const query = buildQuery(params);
-    const data = await apiRequest('GET', `/${this._endpoint}${query}`);
-    if (this._single) {
-      return { data: data[0] || null, error: null };
-    }
-    return { data, error: null };
+  limit(n) {
+    this._limit = n;
+    return this;
   }
 
-  async insert(rows) {
-    const payload = Array.isArray(rows) ? rows : [rows];
-    const results = [];
-    for (const row of payload) {
-      const d = await apiRequest('POST', `/${this._endpoint}/`, row);
-      results.push(d);
-    }
-    return { data: results, error: null };
+  select(fields = '*') {
+    const runSelect = async () => {
+      const params = { ...this._filters };
+      if (this._ordering) params.ordering = this._ordering;
+      const query = buildQuery(params);
+      try {
+        let data = await apiRequest('GET', `/${this._endpoint}${query}`);
+        if (Array.isArray(data) && this._limit) {
+          data = data.slice(0, this._limit);
+        }
+        if (this._single) {
+          const item = Array.isArray(data) ? (data[0] || null) : data;
+          return { data: item, error: null };
+        }
+        return { data, error: null };
+      } catch (err) {
+        return { data: null, error: { message: err.message } };
+      }
+    };
+
+    const promise = runSelect();
+    promise.single = async () => {
+      this._single = true;
+      return await runSelect();
+    };
+    return promise;
+  }
+
+  insert(rows) {
+    const runInsert = async () => {
+      const payload = Array.isArray(rows) ? rows : [rows];
+      try {
+        const results = [];
+        for (const row of payload) {
+          const d = await apiRequest('POST', `/${this._endpoint}`, row);
+          results.push(d);
+        }
+        let resData = Array.isArray(rows) ? results : results[0];
+        if (this._single && Array.isArray(resData)) {
+          resData = resData[0] || null;
+        }
+        return { data: resData, error: null };
+      } catch (err) {
+        return { data: null, error: { message: err.message } };
+      }
+    };
+
+    const promise = runInsert();
+    promise.select = () => {
+      const p = runInsert();
+      p.single = async () => {
+        this._single = true;
+        return await runInsert();
+      };
+      return p;
+    };
+    promise.single = async () => {
+      this._single = true;
+      return await runInsert();
+    };
+    return promise;
   }
 
   async update(updates) {
-    if (Object.keys(this._filters).length > 0 && !this._filters.id) {
-      const listRes = await this.select('*');
-      if (listRes.error) return { data: null, error: listRes.error };
-      const items = listRes.data || [];
-      for (const item of items) {
-        await apiRequest('PATCH', `/${this._endpoint}/${item.id}/`, updates);
+    try {
+      if (Object.keys(this._filters).length > 0 && !this._filters.id) {
+        const listRes = await this.select('*');
+        if (listRes.error) return { data: null, error: listRes.error };
+        const items = listRes.data || [];
+        for (const item of items) {
+          await apiRequest('PATCH', `/${this._endpoint}${item.id}/`, updates);
+        }
+        return { data: items.map(i => ({ ...i, ...updates })), error: null };
       }
-      return { data: items.map(i => ({ ...i, ...updates })), error: null };
+      const id = this._filters.id;
+      if (!id) return { data: null, error: { message: 'Se requiere id para actualizar' } };
+      const data = await apiRequest('PATCH', `/${this._endpoint}${id}/`, updates);
+      return { data: [data], error: null };
+    } catch (err) {
+      return { data: null, error: { message: err.message } };
     }
-    const id = this._filters.id;
-    if (!id) return { data: null, error: { message: 'Se requiere id para actualizar' } };
-    const data = await apiRequest('PATCH', `/${this._endpoint}/${id}/`, updates);
-    return { data: [data], error: null };
   }
 
   async delete() {
-    if (Object.keys(this._filters).length > 0 && !this._filters.id) {
-      const listRes = await this.select('*');
-      if (listRes.error) return { data: null, error: listRes.error };
-      const items = listRes.data || [];
-      for (const item of items) {
-        await apiRequest('DELETE', `/${this._endpoint}/${item.id}/`);
+    try {
+      if (Object.keys(this._filters).length > 0 && !this._filters.id) {
+        const listRes = await this.select('*');
+        if (listRes.error) return { data: null, error: listRes.error };
+        const items = listRes.data || [];
+        for (const item of items) {
+          await apiRequest('DELETE', `/${this._endpoint}${item.id}/`);
+        }
+        return { data: items, error: null };
       }
-      return { data: items, error: null };
+      const id = this._filters.id;
+      if (!id) return { data: null, error: { message: 'Se requiere id para eliminar' } };
+      await apiRequest('DELETE', `/${this._endpoint}${id}/`);
+      return { data: [{ id }], error: null };
+    } catch (err) {
+      return { data: null, error: { message: err.message } };
     }
-    const id = this._filters.id;
-    if (!id) return { data: null, error: { message: 'Se requiere id para eliminar' } };
-    await apiRequest('DELETE', `/${this._endpoint}/${id}/`);
-    return { data: [{ id }], error: null };
   }
 }
 
@@ -120,6 +178,9 @@ export const auth = {
   async getSession() {
     try {
       const data = await apiRequest('GET', '/auth/me/');
+      if (!data || data.authenticated === false || !data.id) {
+        return { data: { session: null }, error: null };
+      }
       return { data: { session: { user: data } }, error: null };
     } catch {
       return { data: { session: null }, error: null };
