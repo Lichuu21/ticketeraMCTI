@@ -66,16 +66,18 @@ export default function Dashboard() {
       } else {
         const verificarPassword = async () => {
           try {
-            const res = await fetch(`${BASE_URL}/api/auth/login/`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              credentials: 'include',
-              body: JSON.stringify({
-                email: user.email,
-                password: 'Cti1234'
-              })
-            });
-            if (res.ok) {
+            const defaults = ['Cti1234', 'EstoNoEsPass'];
+            let isDefault = false;
+            for (const pwd of defaults) {
+              const res = await fetch(`${BASE_URL}/api/auth/login/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ email: user.email, password: pwd })
+              });
+              if (res.ok) { isDefault = true; break; }
+            }
+            if (isDefault) {
               setTienePasswordDefault(true);
               setModalMandatorioOpen(true);
               sessionStorage.setItem('has_pwd_warning_' + user.id, '1');

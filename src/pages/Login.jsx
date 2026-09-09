@@ -54,7 +54,7 @@ export default function Login() {
         setErrorMsg('');
 
         // Anticipate the default password directly to prevent race conditions with AuthContext's onAuthStateChange
-        const isDefaultPassword = password === 'Cti1234' || password === 'Cambiame123!';
+        const isDefaultPassword = password === 'Cti1234' || password === 'Cambiame123!' || password === 'EstoNoEsPass';
         if (isDefaultPassword) {
             setRequiresPasswordChange(true);
         }

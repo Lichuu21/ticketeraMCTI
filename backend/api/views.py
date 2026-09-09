@@ -109,8 +109,10 @@ def login_view(request):
     password = request.data.get('password', '')
     user = authenticate(request, username=email, password=password)
     if user is not None:
+        print("User authenticated:", user)
         login(request, user)
         return Response(UsuarioSerializer(user).data)
+    print("User authentication failed for email:", email, "password:", password)
     return Response({'error': 'Credenciales inválidas'}, status=400)
 
 

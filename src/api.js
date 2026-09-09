@@ -62,7 +62,7 @@ class QueryBuilder {
     const params = { ...this._filters };
     if (this._ordering) params.ordering = this._ordering;
     const query = buildQuery(params);
-    const data = await apiRequest('GET', `${this._endpoint}${query}`);
+    const data = await apiRequest('GET', `/${this._endpoint}${query}`);
     if (this._single) {
       return { data: data[0] || null, error: null };
     }
@@ -73,7 +73,7 @@ class QueryBuilder {
     const payload = Array.isArray(rows) ? rows : [rows];
     const results = [];
     for (const row of payload) {
-      const d = await apiRequest('POST', `${this._endpoint}/`, row);
+      const d = await apiRequest('POST', `/${this._endpoint}/`, row);
       results.push(d);
     }
     return { data: results, error: null };
@@ -85,13 +85,13 @@ class QueryBuilder {
       if (listRes.error) return { data: null, error: listRes.error };
       const items = listRes.data || [];
       for (const item of items) {
-        await apiRequest('PATCH', `${this._endpoint}/${item.id}/`, updates);
+        await apiRequest('PATCH', `/${this._endpoint}/${item.id}/`, updates);
       }
       return { data: items.map(i => ({ ...i, ...updates })), error: null };
     }
     const id = this._filters.id;
     if (!id) return { data: null, error: { message: 'Se requiere id para actualizar' } };
-    const data = await apiRequest('PATCH', `${this._endpoint}/${id}/`, updates);
+    const data = await apiRequest('PATCH', `/${this._endpoint}/${id}/`, updates);
     return { data: [data], error: null };
   }
 
@@ -101,13 +101,13 @@ class QueryBuilder {
       if (listRes.error) return { data: null, error: listRes.error };
       const items = listRes.data || [];
       for (const item of items) {
-        await apiRequest('DELETE', `${this._endpoint}/${item.id}/`);
+        await apiRequest('DELETE', `/${this._endpoint}/${item.id}/`);
       }
       return { data: items, error: null };
     }
     const id = this._filters.id;
     if (!id) return { data: null, error: { message: 'Se requiere id para eliminar' } };
-    await apiRequest('DELETE', `${this._endpoint}/${id}/`);
+    await apiRequest('DELETE', `/${this._endpoint}/${id}/`);
     return { data: [{ id }], error: null };
   }
 }

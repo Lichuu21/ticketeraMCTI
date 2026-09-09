@@ -33,6 +33,7 @@ export const AuthProvider = ({ children }) => {
         const { data, error } = await api.auth.signInWithPassword({ email, password });
         if (error) return { error };
         const userData = data.user;
+        alert(JSON.stringify(userData));
         const perfil = await api.from('usuarios').eq('id', userData.id).select().single();
         setUser({ ...userData, ...perfil.data });
         return { error: null };
