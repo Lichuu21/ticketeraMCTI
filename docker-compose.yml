@@ -30,7 +30,7 @@ services:
     networks:
       - ticket-net
     restart: unless-stopped
-    command: python manage.py runserver 0.0.0.0:8000
+    entrypoint: ["bash", "entrypoint.sh"]
 
   ticket-db:
     image: mariadb:11.6
