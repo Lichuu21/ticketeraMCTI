@@ -36,12 +36,17 @@ export const AuthProvider = ({ children }) => {
     }, []);
 
     const login = async (email, password) => {
-        const { data, error } = await api.auth.signInWithPassword({ email, password });
-        if (error) return { error };
-        const userData = data.user;
-        const perfil = await api.from('usuarios').single().eq('id', userData.id).select();
-        setUser({ ...userData, ...perfil.data });
-        return { error: null };
+        try {
+            const { data, error } = await api.auth.signInWithPassword({ email, password });
+            if (error) return { data: null, error };
+            const userData = data.user;
+            const perfil = await api.from('usuarios').single().eq('id', userData.id).select();
+            const fullUser = { ...userData, ...(perfil?.data || {}) };
+            setUser(fullUser);
+            return { data: fullUser, error: null };
+        } catch (err) {
+            return { data: null, error: { message: err.message || 'Error al iniciar sesión' } };
+        }
     };
 
     const registro = async (email, password, nombreData) => {

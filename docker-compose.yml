@@ -24,13 +24,15 @@ services:
       - .env
     volumes:
       - ./backend:/app
+    ports:
+      - "8071:8000"
     depends_on:
       ticket-db:
         condition: service_healthy
     networks:
       - ticket-net
     restart: unless-stopped
-    entrypoint: ["bash", "entrypoint.sh"]
+    entrypoint: [ "bash", "entrypoint.sh" ]
 
   ticket-db:
     image: mariadb:11.6
@@ -40,7 +42,7 @@ services:
       - mariadb_data:/var/lib/mysql
       - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
-      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      test: [ "CMD", "healthcheck.sh", "--connect", "--innodb_initialized" ]
       interval: 10s
       timeout: 5s
       retries: 5

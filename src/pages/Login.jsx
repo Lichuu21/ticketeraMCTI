@@ -53,26 +53,24 @@ export default function Login() {
         setLoading(true);
         setErrorMsg('');
 
-        // Anticipate the default password directly to prevent race conditions with AuthContext's onAuthStateChange
-        const isDefaultPassword = password === 'Cti1234' || password === 'Cambiame123!' || password === 'EstoNoEsPass';
-        if (isDefaultPassword) {
-            setRequiresPasswordChange(true);
-        }
+        try {
+            const { data: userLogged, error } = await login(email, password);
 
-        const { error } = await login(email, password);
-
-        if (error) {
-            setErrorMsg('Credenciales incorrectas o cuenta no registrada.');
-            setLoading(false);
-            if (isDefaultPassword) setRequiresPasswordChange(false); // Rollback if login failed
-        } else {
-            // Check if they used the temporary password
-            if (isDefaultPassword) {
-                // Keep the loading spinner off so they can interact with the password change form
+            if (error) {
+                setErrorMsg(error.message || 'Credenciales incorrectas o cuenta no registrada.');
                 setLoading(false);
             } else {
-                navigate('/');
+                if (userLogged?.debe_cambiar_password) {
+                    setRequiresPasswordChange(true);
+                    setLoading(false);
+                } else {
+                    setLoading(false);
+                    navigate('/');
+                }
             }
+        } catch (err) {
+            setErrorMsg(err.message || 'Error al iniciar sesión.');
+            setLoading(false);
         }
     };
 
@@ -92,13 +90,19 @@ export default function Login() {
         setLoading(true);
         setErrorMsg('');
 
-        const { error } = await api.auth.updateUser({ password: newPassword });
+        try {
+            const { error } = await api.auth.updateUser({ password: newPassword });
 
-        if (error) {
-            setErrorMsg('Error al actualizar la contraseña: ' + error.message);
+            if (error) {
+                setErrorMsg('Error al actualizar la contraseña: ' + (error.message || 'Intente nuevamente'));
+                setLoading(false);
+            } else {
+                setLoading(false);
+                navigate('/');
+            }
+        } catch (err) {
+            setErrorMsg('Error al actualizar la contraseña: ' + (err.message || 'Error inesperado'));
             setLoading(false);
-        } else {
-            navigate('/');
         }
     };
 

@@ -142,10 +142,7 @@ export default function Dashboard() {
     if (!user) return;
     setLoading(true);
 
-    const { data: tableroUsuarios, error: errTU } = await api
-      .from('tablero_usuarios')
-      .select('tablero_id')
-      .eq('usuario_id', user.id);
+    const { data: tableroUsuarios, error: errTU } = await api.boards.getBoard(user.id);
 
     if (errTU) {
       console.error('Error cargando membresías:', errTU);
@@ -185,13 +182,7 @@ export default function Dashboard() {
       }
 
       for (const t of sortedTableros) {
-        const { data: latestTicket } = await api
-          .from('tickets')
-          .select('fecha_creacion')
-          .eq('tablero_id', t.id)
-          .order('fecha_creacion', { ascending: false })
-          .limit(1);
-
+        const { data: latestTicket } = await api.ticket.getLastTicket();
         if (latestTicket && latestTicket.length > 0) {
           const actTicket = new Date(latestTicket[0].fecha_creacion);
           const actTablero = new Date(t.created_at);
@@ -319,17 +310,15 @@ export default function Dashboard() {
       }
 
     } else {
-      const { data: newBoard, error: errInsert } = await api
-        .from('tableros')
-        .insert([{
+      const { data: newBoard, error: errInsert } = await api.boards.createBoard(
+        {
           nombre: nuevoNombre.trim(),
           descripcion: descEncoded,
           creador_id: user.id,
           tipo: nuevoTipo,
           columnas: columnasFinales
-        }])
-        .select()
-        .single();
+        }
+      );
 
       if (errInsert) {
         alert("Error al crear tablero");
@@ -510,7 +499,7 @@ export default function Dashboard() {
       </div>
 
       {/* Modal Crear Tablero */}
-      <div 
+      <div
         className={`fixed inset-0 bg-slate-900/40 dark:bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-all duration-300 ${modalOpen ? 'opacity-100 visible' : 'opacity-0 invisible pointer-events-none'}`}
         onMouseDown={(e) => {
           if (e.target === e.currentTarget) {
@@ -581,7 +570,7 @@ export default function Dashboard() {
                   placeholder="¿De qué trata este tablero?"
                 />
               </div>
-              
+
               <div className="border-t border-slate-200 dark:border-white/10 pt-4 mt-2">
                 <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-3">Columnas del Tablero</label>
                 <div className="space-y-2 mb-3 max-h-52 overflow-y-auto px-1 custom-scrollbar">
@@ -610,11 +599,10 @@ export default function Dashboard() {
                       onDragEnd={() => {
                         setDraggedColIndex(null);
                       }}
-                      className={`flex flex-col gap-1.5 mb-2 border rounded-xl p-2.5 bg-white dark:bg-white/5 transition-all duration-200 ease-out ${
-                        draggedColIndex === idx
-                          ? 'scale-[1.02] border-[#065E94] dark:border-blue-400 bg-blue-50/80 dark:bg-blue-500/20 shadow-md ring-2 ring-[#065E94]/30'
-                          : 'border-slate-200/80 dark:border-white/10 shadow-sm hover:border-slate-300 dark:hover:border-white/20'
-                      }`}
+                      className={`flex flex-col gap-1.5 mb-2 border rounded-xl p-2.5 bg-white dark:bg-white/5 transition-all duration-200 ease-out ${draggedColIndex === idx
+                        ? 'scale-[1.02] border-[#065E94] dark:border-blue-400 bg-blue-50/80 dark:bg-blue-500/20 shadow-md ring-2 ring-[#065E94]/30'
+                        : 'border-slate-200/80 dark:border-white/10 shadow-sm hover:border-slate-300 dark:hover:border-white/20'
+                        }`}
                     >
                       <div className="flex items-center gap-2">
                         {/* Ícono de Arrastre (6 Puntitos / Grip Handle) */}
@@ -811,11 +799,10 @@ export default function Dashboard() {
                         key={c.value}
                         type="button"
                         onClick={() => setColorTablero(c.value)}
-                        className={`w-7 h-7 rounded-full transition-all duration-200 transform cursor-pointer relative ${
-                          colorTablero === c.value
-                            ? 'scale-125 ring-2 ring-offset-2 ring-[#065E94] dark:ring-blue-400 dark:ring-offset-slate-900 shadow-md z-10'
-                            : 'hover:scale-110 opacity-85 hover:opacity-100'
-                        }`}
+                        className={`w-7 h-7 rounded-full transition-all duration-200 transform cursor-pointer relative ${colorTablero === c.value
+                          ? 'scale-125 ring-2 ring-offset-2 ring-[#065E94] dark:ring-blue-400 dark:ring-offset-slate-900 shadow-md z-10'
+                          : 'hover:scale-110 opacity-85 hover:opacity-100'
+                          }`}
                         style={{ backgroundColor: c.value }}
                         title={c.name}
                       />

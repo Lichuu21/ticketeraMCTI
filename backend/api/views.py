@@ -237,3 +237,42 @@ def serve_media(request, bucket, path):
         return Response({'error': 'File not found'}, status=404)
     content_type = mimetypes.guess_type(file_path)[0] or 'application/octet-stream'
     return FileResponse(open(file_path, 'rb'), content_type=content_type)
+
+
+@api_view(['GET'])
+@permission_classes([permissions.AllowAny])
+def ticket_view(request, id):
+    try:
+        ticket = Ticket.objects.get(id=id)
+        return Response(TicketSerializer(ticket).data)
+    except Ticket.DoesNotExist:
+        return Response({'error': 'Ticket not found'}, status=404)
+
+
+@api_view(['GET'])
+@permission_classes([permissions.AllowAny])
+def lastticket_view(request):
+    ticket = Ticket.objects.all().order_by('-fecha_creacion').first()
+    if not ticket:
+        return Response([])
+    return Response([TicketSerializer(ticket).data])
+
+
+@api_view(['GET'])
+@permission_classes([permissions.AllowAny])
+def tablero_usuarios_get_by_id_view(request, id):
+    from django.db.models import Q
+    tablero_usuarios = TableroUsuario.objects.filter(Q(usuario_id=id) | Q(tablero_id=id))
+    return Response(TableroUsuarioSerializer(tablero_usuarios, many=True).data)
+
+@api_view(['POST'])
+@permission_classes([permissions.AllowAny])
+def create_board_view(request):
+    print(request.data)
+    tablero = Tablero.objects.create(
+        nombre=request.data.get('nombre', ''),
+        creador=Usuario.objects.get(id=request.data.get('creador_id', '')),
+        tipo=request.data.get('tipo', ''),
+        columnas=request.data.get('columnas', ''), #ejemplo: ["Solicitud","En proceso","En espera","Resuelto"]
+    )
+    return Response(TableroSerializer(tablero).data, status=201)
