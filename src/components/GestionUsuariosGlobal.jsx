@@ -12,7 +12,7 @@ export default function GestionUsuariosGlobal({ isOpen, onClose }) {
 
   const fetchUsuarios = async () => {
     if (!isOpen) return;
-    const { data, error } = await api.from('usuarios').select('*').order('nombre');
+    const { data, error } = await api.usuarios.getAll('nombre');
     if (!error && data) {
       setUsuarios(data);
     }
@@ -30,14 +30,14 @@ export default function GestionUsuariosGlobal({ isOpen, onClose }) {
     }
 
     try {
-      const { data, error } = await api.from('usuarios').insert([{
+      const { data, error } = await api.usuarios.create({
         email: formUsuario.email,
         nombre: formUsuario.nombre,
         dependencia: formUsuario.dependencia,
         piso: formUsuario.piso,
         rol: formUsuario.rol,
         activo: true
-      }]);
+      });
 
       if (error) {
         console.error('Error creating user:', error);
@@ -78,7 +78,7 @@ export default function GestionUsuariosGlobal({ isOpen, onClose }) {
     setEditandoId(null);
     setFormDataEdicion({});
 
-    const { error } = await api.from('usuarios').update(cambios).eq('id', userId);
+    const { error } = await api.usuarios.update(userId, cambios);
 
     if (error) {
       alert('Error al guardar los cambios en la base de datos.');
@@ -88,7 +88,7 @@ export default function GestionUsuariosGlobal({ isOpen, onClose }) {
 
   const handleEliminarUsuario = async () => {
     if (!usuarioAEliminar) return;
-    const { error } = await api.from('usuarios').delete().eq('id', usuarioAEliminar.id);
+    const { error } = await api.usuarios.delete(usuarioAEliminar.id);
     if (error) {
       alert('Error al eliminar usuario de la base de datos. Puede que tenga tickets asignados.');
     } else {

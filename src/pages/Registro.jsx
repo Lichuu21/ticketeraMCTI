@@ -30,13 +30,13 @@ export default function Registro() {
         }
 
         if (authData?.user) {
-            const { error: dbError } = await api.from('usuarios').insert([{
+            const { error: dbError } = await api.usuarios.create({
                 id: authData.user.id,
                 nombre,
                 email,
                 dependencia,
                 piso
-            }]);
+            });
 
             if (dbError) {
                 console.error("Error guardando perfil:", dbError);

@@ -612,11 +612,7 @@ export default function TableroKanban() {
   });
 
   const fetchComentarios = async (ticketId) => {
-    const { data, error } = await api
-      .from('comentarios')
-      .select('*')
-      .eq('ticket_id', ticketId)
-      .order('created_at', { ascending: true });
+    const { data, error } = await api.comentarios.getByTicket(ticketId);
     if (error) console.error("Error al buscar comentarios:", error);
     else setComentarios(data);
   };
@@ -633,10 +629,7 @@ export default function TableroKanban() {
       const notifPendientes = notificaciones.filter(n => n.ticket_id === ticket.id);
       if (notifPendientes.length > 0) {
         setNotificaciones(prev => prev.filter(n => n.ticket_id !== ticket.id));
-        api.from('notificaciones')
-          .update({ leida: true })
-          .eq('usuario_id', user.id)
-          .eq('ticket_id', ticket.id)
+        api.notificaciones.markTicketAsRead(ticket.id)
           .then(({ error }) => { if (error) console.error("Error marcando notificación leída:", error); });
       }
     }
@@ -794,7 +787,7 @@ export default function TableroKanban() {
     const prevComentarios = [...comentarios];
     setComentarios(prev => prev.filter(c => c.id !== comentarioId));
 
-    const { error } = await api.from('comentarios').delete().eq('id', comentarioId);
+    const { error } = await api.comentarios.delete(comentarioId);
     if (error) {
       console.error("Error eliminando comentario", error);
       alert("No se pudo eliminar el comentario: " + error.message);
@@ -810,7 +803,7 @@ export default function TableroKanban() {
     setComentarios(prev => prev.map(c => c.id === comentarioId ? { ...c, texto: textoEditado.trim() } : c));
     setComentarioAEditar(null);
 
-    const { error } = await api.from('comentarios').update({ texto: textoEditado.trim() }).eq('id', comentarioId);
+    const { error } = await api.comentarios.update(comentarioId, { texto: textoEditado.trim() });
     if (error) {
       console.error("Error editando comentario", error);
       alert("No se pudo editar el comentario: " + error.message);
@@ -823,11 +816,7 @@ export default function TableroKanban() {
     setLoading(true);
 
     // 1. Cargar el tablero actual y validar acceso
-    const { data: tablero, error: tableroErr } = await api
-      .from('tableros')
-      .select('*')
-      .eq('id', tableroId)
-      .single();
+    const { data: tablero, error: tableroErr } = await api.tableros.getById(tableroId);
 
     if (tableroErr || !tablero) {
       console.error("Tablero no encontrado", tableroErr);
@@ -835,20 +824,12 @@ export default function TableroKanban() {
       return;
     }
 
-    const { data: perfilGlobal } = await api
-      .from('usuarios')
-      .select('rol')
-      .eq('id', user.id)
-      .single();
+    const { data: perfilGlobal } = await api.usuarios.getById(user.id);
 
     const isGlobalAdmin = perfilGlobal?.rol === 'Administrador';
 
-    const { data: membresia, error: memErr } = await api
-      .from('tablero_usuarios')
-      .select('*')
-      .eq('tablero_id', tableroId)
-      .eq('usuario_id', user.id)
-      .single();
+    const { data: membresiasData, error: memErr } = await api.tableroUsuarios.getByTablero(tableroId);
+    const membresia = membresiasData?.find(m => m.usuario_id === user.id) || null;
 
     if ((memErr || !membresia) && !isGlobalAdmin) {
       console.error("No tienes acceso a este tablero");
@@ -860,9 +841,9 @@ export default function TableroKanban() {
 
     // 2. Cargar tickets, usuarios y membresias del tablero
     const [ticketsRes, usuariosRes, membresiasRes] = await Promise.all([
-      api.from('tickets').select('*').eq('tablero_id', tableroId).order('fecha_creacion', { ascending: false }),
-      api.from('usuarios').select('*').order('nombre', { ascending: true }),
-      api.from('tablero_usuarios').select('*').eq('tablero_id', tableroId)
+      api.tickets.getByTablero(tableroId),
+      api.usuarios.getAll('nombre'),
+      api.tableroUsuarios.getByTablero(tableroId)
     ]);
 
     if (!ticketsRes.error && ticketsRes.data) {
@@ -900,12 +881,7 @@ export default function TableroKanban() {
 
   const fetchNotificaciones = async () => {
     if (!user) return;
-    const { data, error } = await api
-      .from('notificaciones')
-      .select('*')
-      .eq('usuario_id', user.id)
-      .eq('leida', false)
-      .order('created_at', { ascending: false });
+    const { data, error } = await api.notificaciones.getUnread();
 
     if (!error && data) {
       setNotificaciones(data);
@@ -995,23 +971,20 @@ export default function TableroKanban() {
 
     // Actualizamos asíncronamente en Supabase
     try {
-      const { error } = await api
-        .from('tickets')
-        .update({
+      const { error } = await api.tickets.update(ticketToMove.id, {
           estado: estadoNuevo,
           fecha_creacion: isoNewDate
-        })
-        .eq('id', ticketToMove.id);
+        });
 
       if (error) throw error;
 
       // Generar comentario de auditoría (Trazabilidad) si cambió de estado
-      if (estadoNuevo !== estadoPrevio && user) {
-        api.from('comentarios').insert([{
+        if (estadoNuevo !== estadoPrevio && user) {
+        api.comentarios.create({
           ticket_id: ticketToMove.id,
           usuario_id: user.id,
           texto: `[AUDITORÍA]: Ticket movido de "${estadoPrevio}" a "${estadoNuevo}".`
-        }]).then(({ error: auditError }) => {
+        }).then(({ error: auditError }) => {
           if (auditError) console.error("Error al registrar auditoría:", auditError);
         });
       }
@@ -1030,11 +1003,11 @@ export default function TableroKanban() {
     if (user) {
       const isResuelto = ticketAResolver.targetState === 'Resuelto';
       const prefix = isResuelto ? '[RESOLUCIÓN OFICIAL]' : '[AUDITORÍA]';
-      const { error: errCom } = await api.from('comentarios').insert([{
+      const { error: errCom } = await api.comentarios.create({
         ticket_id: ticketAResolver.id,
         usuario_id: user.id,
         texto: `${prefix}: ${resolucionTexto.trim()}`
-      }]);
+      });
       if (errCom) {
         console.error("Error guardando resolución en DB:", errCom);
       } else {
@@ -1056,13 +1029,10 @@ export default function TableroKanban() {
     }
 
     try {
-      const { error } = await api
-        .from('tickets')
-        .update({
+      const { error } = await api.tickets.update(ticketAResolver.id, {
           estado: ticketAResolver.targetState || 'Resuelto',
           fecha_creacion: ticketAResolver.nuevaFecha
-        })
-        .eq('id', ticketAResolver.id);
+        });
 
       if (error) throw error;
     } catch (error) {
@@ -1103,21 +1073,21 @@ export default function TableroKanban() {
     setTickets(localTickets);
 
     try {
-      const { error } = await api.from('tickets').update({ estado: estadoNuevo, fecha_creacion: isoNewDate }).eq('id', ticketToResolve.id);
+      const { error } = await api.tickets.update(ticketToResolve.id, { estado: estadoNuevo, fecha_creacion: isoNewDate });
       if (error) throw error;
 
-      const { error: errCom } = await api.from('comentarios').insert([{
+      const { error: errCom } = await api.comentarios.create({
         ticket_id: ticketToResolve.id,
         usuario_id: user.id,
         texto: `RESOLUCIÓN OFICIAL: Resuelto`
-      }]);
+      });
       if (errCom) console.error("Error guardando resolución rápida en DB:", errCom);
 
-      const { error: auditError } = await api.from('comentarios').insert([{
+      const { error: auditError } = await api.comentarios.create({
         ticket_id: ticketToResolve.id,
         usuario_id: user.id,
         texto: `[AUDITORÍA]: El ticket fue movido de "${estadoPrevio}" a "${estadoNuevo}" `
-      }]);
+      });
       if (auditError) console.error("Error al registrar auditoría:", auditError);
     } catch (error) {
       console.error('Error en resolución rápida, haciendo rollback:', error);
@@ -1165,11 +1135,7 @@ export default function TableroKanban() {
           updatePayload.email_solicitante = email_solicitante.trim();
         }
 
-        let res = await api
-          .from('tickets')
-          .update(updatePayload)
-          .eq('id', id)
-          .select();
+        let res = await api.tickets.update(id, updatePayload);
 
         data = res.data;
         error = res.error;
@@ -1177,11 +1143,7 @@ export default function TableroKanban() {
         // Fallback si la columna 'email_solicitante' no existe en Supabase DB
         if (error && error.message?.includes('email_solicitante')) {
           delete updatePayload.email_solicitante;
-          res = await api
-            .from('tickets')
-            .update(updatePayload)
-            .eq('id', id)
-            .select();
+          res = await api.tickets.update(id, updatePayload);
           data = res.data;
           error = res.error;
         }
@@ -1196,11 +1158,11 @@ export default function TableroKanban() {
           if (ticketViejo.responsable !== responsable) cambios.push(`Responsable: ${ticketViejo.responsable || 'Sin asignar'} ➔ ${responsable || 'Sin asignar'}`);
 
           if (cambios.length > 0) {
-            api.from('comentarios').insert([{
+            api.comentarios.create({
               ticket_id: id,
               usuario_id: user.id,
               texto: `[AUDITORÍA]: Se editó el ticket.\n- ${cambios.join('\n- ')}`
-            }]).then(({ error: auditError }) => {
+            }).then(({ error: auditError }) => {
               if (auditError) console.error("Error al registrar auditoría de edición:", auditError);
             });
           }
@@ -1238,10 +1200,7 @@ export default function TableroKanban() {
           payload.email_solicitante = email_solicitante.trim();
         }
 
-        let res = await api
-          .from('tickets')
-          .insert([payload])
-          .select();
+        let res = await api.tickets.create(payload);
 
         data = res.data;
         error = res.error;
@@ -1251,10 +1210,7 @@ export default function TableroKanban() {
           console.warn("Reintentando creación sin la columna 'email_solicitante'...", error);
           const payloadSinEmail = { ...payload };
           delete payloadSinEmail.email_solicitante;
-          res = await api
-            .from('tickets')
-            .insert([payloadSinEmail])
-            .select();
+          res = await api.tickets.create(payloadSinEmail);
           data = res.data;
           error = res.error;
         }
@@ -1264,10 +1220,7 @@ export default function TableroKanban() {
           console.warn("Reintentando creación con estado 'Pendiente'...", error);
           const payloadSinEmail = { ...payload, estado: 'Pendiente' };
           delete payloadSinEmail.email_solicitante;
-          res = await api
-            .from('tickets')
-            .insert([payloadSinEmail])
-            .select();
+          res = await api.tickets.create(payloadSinEmail);
           data = res.data;
           error = res.error;
         }
@@ -1279,11 +1232,11 @@ export default function TableroKanban() {
           const textoAuditoria = `[AUDITORÍA]: Ticket creado por ${creadorNombre}${infoSolicitante}.`;
 
           // Registrar trazabilidad de creación en la auditoría
-          api.from('comentarios').insert([{
+          api.comentarios.create({
             ticket_id: nuevoTicketId,
             usuario_id: user.id,
             texto: textoAuditoria
-          }]).then(({ error: auditError }) => {
+          }).then(({ error: auditError }) => {
             if (auditError) console.error("Error al registrar auditoría de creación:", auditError);
           });
 
@@ -1323,9 +1276,11 @@ export default function TableroKanban() {
 
             if (notificacionesPayload.length > 0) {
               // Fire and forget, no bloqueamos la interfaz
-              api.from('notificaciones').insert(notificacionesPayload).then(({ error: notifError }) => {
-                if (notifError) console.error("Error al despachar notificaciones:", notifError);
-              });
+              Promise.all(notificacionesPayload.map(item => api.notificaciones.create(item)))
+                .then(results => {
+                  const errors = results.filter(r => r.error);
+                  if (errors.length > 0) console.error("Error al despachar notificaciones:", errors[0].error);
+                });
             }
           }
         }
@@ -1372,16 +1327,13 @@ export default function TableroKanban() {
 
     try {
       // Crear usuario directamente en la tabla usuarios (el backend maneja auth)
-      const { data, error } = await api
-        .from('usuarios')
-        .insert([{
+      const { data, error } = await api.usuarios.create({
           nombre: formUsuario.nombre,
           email: formUsuario.email,
           dependencia: formUsuario.dependencia,
           piso: formUsuario.piso,
           rol: formUsuario.rol
-        }])
-        .select();
+        });
 
       if (error) {
         console.error("Error inserting user:", error);
@@ -1410,11 +1362,7 @@ export default function TableroKanban() {
     if (!usuarioAEliminar) return;
 
     // Usamos .select() para verificar si la base de datos realmente eliminó la fila
-    const { data, error } = await api
-      .from('usuarios')
-      .delete()
-      .eq('id', usuarioAEliminar.id)
-      .select();
+    const { data, error } = await api.usuarios.delete(usuarioAEliminar.id);
 
     if (error) {
       console.error('Error al eliminar usuario', error);
@@ -1436,16 +1384,12 @@ export default function TableroKanban() {
     const uAA = usuarios.find(usr => usr.id === usuarioAAñadir);
     const defaultPerms = uAA?.rol === 'Soporte' ? PERMISOS_DEFAULT['Soporte Tecnico'] : PERMISOS_DEFAULT['Usuario'];
 
-    const { error } = await api
-      .from('tablero_usuarios')
-      .insert([
-        {
+    const { error } = await api.tableroUsuarios.addMember({
           tablero_id: tableroId,
           usuario_id: usuarioAAñadir,
           rol_en_tablero: uAA?.rol || 'Usuario',
           permisos: defaultPerms
-        }
-      ]);
+        });
 
     if (error) {
       console.error('Error al añadir miembro:', error);
@@ -1460,11 +1404,7 @@ export default function TableroKanban() {
   const handleEliminarMiembro = async () => {
     if (!usuarioAEliminar) return;
 
-    const { error } = await api
-      .from('tablero_usuarios')
-      .delete()
-      .eq('tablero_id', tableroId)
-      .eq('usuario_id', usuarioAEliminar.id);
+    const { error } = await api.tableroUsuarios.removeMember(tableroId, usuarioAEliminar.id);
 
     if (error) {
       console.error('Error al eliminar miembro del tablero:', error);
@@ -1481,11 +1421,7 @@ export default function TableroKanban() {
     setUsuarios(prev => prev.map(u => u.id === userId ? { ...u, rol_en_tablero: nuevoRol } : u));
     setRolesEditados(prev => { const temp = { ...prev }; delete temp[userId]; return temp; });
 
-    const { error } = await api
-      .from('tablero_usuarios')
-      .update({ rol_en_tablero: nuevoRol })
-      .eq('tablero_id', tableroId)
-      .eq('usuario_id', userId);
+    const { error } = await api.tableroUsuarios.updateRole(tableroId, userId, nuevoRol);
 
     if (error) {
       console.error('Error al actualizar el rol en tablero', error);
@@ -1497,11 +1433,7 @@ export default function TableroKanban() {
   // Editar Permisos Granulares
   const handleGuardarPermisos = async (userId, nuevosPermisos) => {
     setUsuarios(prev => prev.map(u => u.id === userId ? { ...u, permisos_tablero: nuevosPermisos } : u));
-    const { error } = await api
-      .from('tablero_usuarios')
-      .update({ permisos: nuevosPermisos })
-      .eq('tablero_id', tableroId)
-      .eq('usuario_id', userId);
+    const { error } = await api.tableroUsuarios.updatePermisos(tableroId, userId, nuevosPermisos);
 
     if (error) {
       console.error('Error al actualizar permisos', error);
@@ -1516,11 +1448,7 @@ export default function TableroKanban() {
     if (!ticketAEliminar) return;
 
     // Usamos .select() para verificar si la base de datos realmente eliminó la fila
-    const { data, error } = await api
-      .from('tickets')
-      .delete()
-      .eq('id', ticketAEliminar.id)
-      .select();
+    const { data, error } = await api.tickets.delete(ticketAEliminar.id);
 
     if (error) {
       console.error('Error al eliminar ticket', error);
@@ -1560,7 +1488,7 @@ export default function TableroKanban() {
       setTicketActivo(prev => ({ ...prev, checklist: updatedChecklist }));
     }
 
-    const { error } = await api.from('tickets').update({ checklist: updatedChecklist }).eq('id', ticketId);
+    const { error } = await api.tickets.update(ticketId, { checklist: updatedChecklist });
     if (error) console.error("Error al actualizar checklist:", error);
   };
 
@@ -1578,7 +1506,7 @@ export default function TableroKanban() {
     setTickets(prev => prev.map(t => t.id === ticketActivo.id ? { ...t, checklist: updatedChecklist } : t));
     setTicketActivo(prev => ({ ...prev, checklist: updatedChecklist }));
 
-    const { error } = await api.from('tickets').update({ checklist: updatedChecklist }).eq('id', ticketActivo.id);
+    const { error } = await api.tickets.update(ticketActivo.id, { checklist: updatedChecklist });
     if (error) console.error("Error al agregar al checklist:", error);
   };
 
@@ -1597,7 +1525,7 @@ export default function TableroKanban() {
       setTicketActivo(prev => ({ ...prev, checklist: updatedChecklist }));
     }
 
-    const { error } = await api.from('tickets').update({ checklist: updatedChecklist }).eq('id', ticketId);
+    const { error } = await api.tickets.update(ticketId, { checklist: updatedChecklist });
     if (error) console.error("Error al eliminar del checklist:", error);
   };
 
@@ -3061,14 +2989,14 @@ export default function TableroKanban() {
                         setTimeout(() => mensajesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
 
                         // Guardamos en DB
-                        const { error } = await api.from('comentarios').insert([{
+                        const { error } = await api.comentarios.create({
                           ticket_id: ticketActivo.id,
                           usuario_id: user.id,
                           texto: textoInsert,
                           archivo_url: archivoUrl,
                           archivo_nombre: archivoNombre,
                           archivo_tipo: archivoTipo
-                        }]);
+                        });
 
                         // Si da error, lo volvemos atras
                         if (error) {
@@ -3189,14 +3117,14 @@ export default function TableroKanban() {
                     setTimeout(() => mensajesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
 
                     // Guardamos en DB
-                    const { error } = await api.from('comentarios').insert([{
+                    const { error } = await api.comentarios.create({
                       ticket_id: ticketActivo.id,
                       usuario_id: user.id,
                       texto: textoInsert,
                       archivo_url: archivoUrl,
                       archivo_nombre: archivoNombre,
                       archivo_tipo: archivoTipo
-                    }]);
+                    });
 
                     // Si da error, lo volvemos atras
                     if (error) {
@@ -3475,7 +3403,7 @@ function NotificationItem({ n, tickets, setTicketActivo, setDetalleOpen, fetchCo
   const handleDismiss = (e) => {
     if (e) e.stopPropagation();
     setNotificaciones(prev => prev.filter(x => x.id !== n.id));
-    api.from('notificaciones').update({ leida: true }).eq('id', n.id).then(({ error }) => { if (error) console.error(error); });
+    api.notificaciones.markAsRead(n.id).then(({ error }) => { if (error) console.error(error); });
   };
 
   const handleClick = () => {

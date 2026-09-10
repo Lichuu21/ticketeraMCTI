@@ -8,20 +8,14 @@ export const AuthProvider = ({ children }) => {
     const [loading, setLoading] = useState(true);
 
     const fetchUserProfile = async () => {
-        const isAuthRoute = ['/login', '/registro'].includes(window.location.pathname);
-        if (isAuthRoute) {
-            setUser(null);
-            setLoading(false);
-            return;
-        }
         try {
             const { data, error } = await api.auth.getSession();
             if (error || !data.session) {
                 setUser(null);
             } else {
                 const userData = data.session.user;
-                const perfil = await api.from('usuarios').single().eq('id', userData.id).select();
-                setUser({ ...userData, ...perfil.data });
+                const { data: perfil } = await api.usuarios.getById(userData.id);
+                setUser({ ...userData, ...perfil });
             }
         } catch (err) {
             console.error("Error obteniendo perfil:", err);
@@ -36,17 +30,12 @@ export const AuthProvider = ({ children }) => {
     }, []);
 
     const login = async (email, password) => {
-        try {
-            const { data, error } = await api.auth.signInWithPassword({ email, password });
-            if (error) return { data: null, error };
-            const userData = data.user;
-            const perfil = await api.from('usuarios').single().eq('id', userData.id).select();
-            const fullUser = { ...userData, ...(perfil?.data || {}) };
-            setUser(fullUser);
-            return { data: fullUser, error: null };
-        } catch (err) {
-            return { data: null, error: { message: err.message || 'Error al iniciar sesión' } };
-        }
+        const { data, error } = await api.auth.signInWithPassword({ email, password });
+        if (error) return { error };
+        const userData = data.user;
+        const { data: perfil } = await api.usuarios.getById(userData.id);
+        setUser({ ...userData, ...perfil });
+        return { error: null };
     };
 
     const registro = async (email, password, nombreData) => {

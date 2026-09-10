@@ -8,6 +8,7 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  publicDir: 'src/public',
   server: {
     host: true,
     proxy: {

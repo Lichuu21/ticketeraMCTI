@@ -12,3 +12,4 @@ Dockerfile.frontend
 docker-compose.yml
 db
 backend
+backend/.venv

@@ -49,7 +49,7 @@ export default function Dashboard() {
   useEffect(() => {
     if (user?.id) {
       const cargarPerfil = async () => {
-        const { data } = await api.from('usuarios').select('*').eq('id', user.id).single();
+        const { data } = await api.usuarios.getById(user.id);
         if (data) {
           setUsuarioPerfil(data);
           if (data.debe_cambiar_password) {
@@ -68,11 +68,7 @@ export default function Dashboard() {
     if (!user) return;
 
     const cargarNotificaciones = async () => {
-      const { data: notifs } = await api
-        .from('notificaciones')
-        .select('ticket_id')
-        .eq('usuario_id', user.id)
-        .eq('leida', false);
+      const { data: notifs } = await api.notificaciones.getUnread();
 
       if (notifs && notifs.length > 0) {
         const ticketIds = notifs.map(n => n.ticket_id).filter(Boolean);
@@ -81,10 +77,12 @@ export default function Dashboard() {
           return;
         }
 
-        const { data: ticketsData } = await api
-          .from('tickets')
-          .select('id, tablero_id')
-          .in('id', ticketIds);
+        const ticketResults = await Promise.all(
+          ticketIds.map(id => api.tickets.getById(id))
+        );
+        const ticketsData = ticketResults
+          .filter(r => r.data)
+          .map(r => r.data);
 
         if (ticketsData) {
           const counts = {};
@@ -142,7 +140,7 @@ export default function Dashboard() {
     if (!user) return;
     setLoading(true);
 
-    const { data: tableroUsuarios, error: errTU } = await api.boards.getBoard(user.id);
+    const { data: tableroUsuarios, error: errTU } = await api.tableroUsuarios.getByUsuario(user.id);
 
     if (errTU) {
       console.error('Error cargando membresías:', errTU);
@@ -158,11 +156,7 @@ export default function Dashboard() {
 
     const tableroIds = tableroUsuarios.map(tu => tu.tablero_id);
 
-    const { data: tablerosData, error: errT } = await api
-      .from('tableros')
-      .select('*')
-      .in('id', tableroIds)
-      .order('created_at', { ascending: false });
+    const { data: tablerosData, error: errT } = await api.tableros.getByUsuario();
 
     if (errT) {
       console.error('Error cargando tableros:', errT);
@@ -182,11 +176,11 @@ export default function Dashboard() {
       }
 
       for (const t of sortedTableros) {
-        const { data: latestTicket } = await api.ticket.getLastTicket();
-        if (latestTicket && latestTicket.length > 0) {
-          const actTicket = new Date(latestTicket[0].fecha_creacion);
+        const { data: latestTickets } = await api.tickets.getByTablero(t.id);
+        if (latestTickets && latestTickets.length > 0) {
+          const actTicket = new Date(latestTickets[0].fecha_creacion);
           const actTablero = new Date(t.created_at);
-          t.last_activity = actTicket > actTablero ? latestTicket[0].fecha_creacion : t.created_at;
+          t.last_activity = actTicket > actTablero ? latestTickets[0].fecha_creacion : t.created_at;
         } else {
           t.last_activity = t.created_at;
         }
@@ -273,10 +267,10 @@ export default function Dashboard() {
     if (tableroEditando) {
       const viejas = tableroEditando.columnas || ['Solicitud', 'En proceso', 'En espera', 'Resuelto'];
 
-      const { error: errUpdate } = await api
-        .from('tableros')
-        .update({ nombre: nuevoNombre.trim(), descripcion: descEncoded, tipo: nuevoTipo, columnas: columnasFinales })
-        .eq('id', tableroEditando.id);
+      const { error: errUpdate } = await api.tableros.update(
+        tableroEditando.id,
+        { nombre: nuevoNombre.trim(), descripcion: descEncoded, tipo: nuevoTipo, columnas: columnasFinales }
+      );
 
       if (errUpdate) {
         alert("Error al actualizar tablero");
@@ -288,29 +282,25 @@ export default function Dashboard() {
           const oldName = viejas[i];
           const newName = columnasFinales[i];
           if (oldName !== newName && !columnasFinales.includes(oldName) && !viejas.includes(newName)) {
-            await api
-              .from('tickets')
-              .update({ estado: newName })
-              .eq('tablero_id', tableroEditando.id)
-              .eq('estado', oldName);
+            await api.tickets.renameColumn(tableroEditando.id, oldName, newName);
           }
         }
       }
 
-      const { data: lostTickets } = await api.from('tickets').select('id, estado').eq('tablero_id', tableroEditando.id);
+      const { data: lostTickets } = await api.tickets.getByTablero(tableroEditando.id);
       if (lostTickets) {
         const orphans = lostTickets.filter(t => !columnasFinales.includes(t.estado));
         if (orphans.length > 0) {
-          await api
-            .from('tickets')
-            .update({ estado: columnasFinales[0] })
-            .eq('tablero_id', tableroEditando.id)
-            .in('id', orphans.map(t => t.id));
+          await api.tickets.moveOrphanTickets(
+            tableroEditando.id,
+            orphans.map(t => t.id),
+            columnasFinales[0]
+          );
         }
       }
 
     } else {
-      const { data: newBoard, error: errInsert } = await api.boards.createBoard(
+      const { data: newBoard, error: errInsert } = await api.tableros.create(
         {
           nombre: nuevoNombre.trim(),
           descripcion: descEncoded,
@@ -325,13 +315,11 @@ export default function Dashboard() {
         return;
       }
 
-      await api
-        .from('tablero_usuarios')
-        .insert([{
-          tablero_id: newBoard.id,
-          usuario_id: user.id,
-          rol_en_tablero: 'Administrador'
-        }]);
+      await api.tableroUsuarios.addMember({
+        tablero_id: newBoard.id,
+        usuario_id: user.id,
+        rol_en_tablero: 'Administrador'
+      });
     }
 
     setModalOpen(false);
@@ -344,10 +332,7 @@ export default function Dashboard() {
 
   const handleEliminarTablero = async (tableroId) => {
     if (window.confirm('¿Estás seguro de que quieres eliminar este tablero? Esta acción no se puede deshacer y se perderán todos los tickets y datos asociados.')) {
-      const { error } = await api
-        .from('tableros')
-        .delete()
-        .eq('id', tableroId);
+      const { error } = await api.tableros.delete(tableroId);
 
       if (error) {
         alert("Error al eliminar el tablero: " + error.message);
