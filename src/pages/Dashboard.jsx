@@ -6,7 +6,7 @@ import { SortableContext, sortableKeyboardCoordinates, rectSortingStrategy, arra
 import { CSS } from '@dnd-kit/utilities';
 import GestionUsuariosGlobal from '../components/GestionUsuariosGlobal';
 import { parseTableroConfig, buildTableroConfig } from '../utils/configTablero';
-import api, { BASE_URL } from '../api';
+import api from '../api';
 
 export default function Dashboard() {
   const [tableros, setTableros] = useState([]);

@@ -7,6 +7,8 @@ services:
       dockerfile: Dockerfile.frontend.dev
     volumes:
       - ./src:/app/src
+      - ./index.html:/app/index.html
+      - ./vite.config.js:/app/vite.config.js
       - /app/node_modules
     ports:
       - "8070:5173"

@@ -766,11 +766,11 @@ export default function TableroKanban() {
 
   // 1. Carga inicial de datos y WebSockets (Realtime)
   useEffect(() => {
-    fetchData();
+    fetchData(false);
 
     // Polling interval to simulate realtime updates
     const interval = setInterval(() => {
-      fetchData();
+      fetchData(true);
       fetchNotificaciones();
     }, 30000);
 
@@ -811,9 +811,9 @@ export default function TableroKanban() {
     }
   };
 
-  const fetchData = async () => {
+  const fetchData = async (silent = false) => {
     if (!tableroId || !user) return;
-    setLoading(true);
+    if (!silent) setLoading(true);
 
     // 1. Cargar el tablero actual y validar acceso
     const { data: tablero, error: tableroErr } = await api.tableros.getById(tableroId);
@@ -876,7 +876,7 @@ export default function TableroKanban() {
       fetchNotificaciones();
     }
 
-    setLoading(false);
+    if (!silent) setLoading(false);
   };
 
   const fetchNotificaciones = async () => {
@@ -1225,8 +1225,8 @@ export default function TableroKanban() {
           error = res.error;
         }
 
-        if (!error && data && data.length > 0 && user) {
-          const nuevoTicketId = data[0].id;
+        if (!error && data && user) {
+          const nuevoTicketId = data.id;
           const creadorNombre = user.nombre || user.email || 'Usuario';
           const infoSolicitante = solicitante ? ` para ${solicitante}${seccion_solicitante ? ` (${seccion_solicitante})` : ''}` : '';
           const textoAuditoria = `[AUDITORÍA]: Ticket creado por ${creadorNombre}${infoSolicitante}.`;
@@ -1242,22 +1242,22 @@ export default function TableroKanban() {
 
           // Notificar a n8n si hay correo de solicitante configurado
           if (email_solicitante && email_solicitante.trim()) {
-            const numeroTicketCalculado = getNumeroTicket(data[0], [...tickets, data[0]]);
+            const numeroTicketCalculado = getNumeroTicket(data, [...tickets, data]);
             const n8nWebhookUrl = import.meta.env.VITE_N8N_WEBHOOK_URL || 'https://n8n.efectohost.com/webhook/crear-ticket';
             if (n8nWebhookUrl) {
               fetch(n8nWebhookUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                  ticket_id: data[0].id,
+                  ticket_id: data.id,
                   numero_ticket: numeroTicketCalculado ? `#${numeroTicketCalculado}` : 'Nota',
-                  titulo: data[0].titulo,
-                  solicitante: data[0].solicitante || 'Solicitante',
+                  titulo: data.titulo,
+                  solicitante: data.solicitante || 'Solicitante',
                   email_solicitante: email_solicitante.trim(),
-                  area: data[0].area || 'General',
-                  prioridad: data[0].prioridad,
-                  seccion_solicitante: data[0].seccion_solicitante || '',
-                  fecha_creacion: new Date(data[0].fecha_creacion).toLocaleDateString('es-AR')
+                  area: data.area || 'General',
+                  prioridad: data.prioridad,
+                  seccion_solicitante: data.seccion_solicitante || '',
+                  fecha_creacion: new Date(data.fecha_creacion).toLocaleDateString('es-AR')
                 })
               }).catch(err => console.error("Error al notificar a n8n:", err));
             }
@@ -1302,11 +1302,11 @@ export default function TableroKanban() {
       setModalOpen(false);
       setFormConfig({ id: null, titulo: '', descripcion: '', area: '', prioridad: 'Media', responsables: [], solicitante: '', seccion_solicitante: '', email_solicitante: '' });
       if (id) {
-        setTickets(prev => prev.map(t => t.id === id ? { ...t, ...data[0] } : t));
+        setTickets(prev => prev.map(t => t.id === id ? { ...t, ...data } : t));
         setDetalleOpen(false);
         setTicketActivo(null);
       } else {
-        setTickets(prev => [data[0], ...prev]);
+        setTickets(prev => [data, ...prev]);
       }
     } catch (err) {
       console.error("Excepción inesperada en handleCrearTicket:", err);
@@ -1341,11 +1341,11 @@ export default function TableroKanban() {
         return;
       }
 
-      if (data && data.length > 0) {
-        console.log("Usuario creado exitosamente!", data[0]);
+      if (data) {
+        console.log("Usuario creado exitosamente!", data);
         setFormUsuario({ nombre: '', email: '', dependencia: '', piso: '', rol: 'Soporte Tecnico' });
         setUsuarios(prev => {
-          const nuevosUsuarios = [...prev, data[0]];
+          const nuevosUsuarios = [...prev, data];
           return nuevosUsuarios.sort((a, b) => a.nombre.localeCompare(b.nombre));
         });
         alert(`Usuario creado con éxito.\nContraseña temporal: Cti1234`);
@@ -1396,7 +1396,7 @@ export default function TableroKanban() {
       alert('No se pudo añadir al miembro: ' + error.message);
     } else {
       setUsuarioAAñadir('');
-      fetchData();
+      fetchData(true);
     }
   };
 
@@ -1426,7 +1426,7 @@ export default function TableroKanban() {
     if (error) {
       console.error('Error al actualizar el rol en tablero', error);
       alert('Error al guardar el nuevo rol en la base de datos.');
-      fetchData();
+      fetchData(true);
     }
   };
 
@@ -1438,7 +1438,7 @@ export default function TableroKanban() {
     if (error) {
       console.error('Error al actualizar permisos', error);
       alert('Error al guardar los permisos en la base de datos.');
-      fetchData();
+      fetchData(true);
     }
   };
 

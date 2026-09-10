@@ -1,6 +1,6 @@
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
-export const BASE_URL = API_URL.replace('/api', '');
+const API_URL = '/api';
 
+export const BASE_URL = '';
 async function apiRequest(method, path, body = null) {
   const opts = {
     method,
@@ -416,7 +416,7 @@ export const storage = {
       async upload(path, file) {
         const formData = new FormData();
         formData.append('file', file);
-        const res = await fetch(`${BASE_URL}/api/media/upload/${bucket}/${path}`, {
+        const res = await fetch(`/api/media/upload/${bucket}/${path}`, {
           method: 'POST',
           credentials: 'include',
           body: formData,
@@ -426,7 +426,7 @@ export const storage = {
         return { data: { path: data.path }, error: null };
       },
       getPublicUrl(path) {
-        return { data: { publicUrl: `${BASE_URL}/media/${bucket}/${path}` } };
+        return { data: { publicUrl: `/media/${bucket}/${path}` } };
       },
     };
   },
