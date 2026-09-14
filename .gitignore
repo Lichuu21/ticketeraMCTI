@@ -49,3 +49,6 @@ backend/.env
 
 # MariaDB volume data
 db/data/
+
+# Django media uploads
+backend/media/

@@ -4,3 +4,4 @@ django-cors-headers>=4.4
 django-filter>=23.5
 mysqlclient>=2.2
 gunicorn>=22.0
+Pillow>=10.0.0

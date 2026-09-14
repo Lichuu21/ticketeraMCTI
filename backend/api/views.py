@@ -1,13 +1,19 @@
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
-from core.models import Usuario, Tablero, TableroUsuario, Ticket, Comentario, Notificacion
+from core.models import (
+    SiteSetting, Usuario, Tablero, TableroUsuario, Ticket,
+    Comentario, Notificacion, WallpaperGroup, Wallpaper
+)
 from .serializers import (
     UsuarioSerializer, TableroSerializer, TableroUsuarioSerializer,
-    TicketSerializer, ComentarioSerializer, NotificacionSerializer
+    TicketSerializer, ComentarioSerializer, NotificacionSerializer,
+    SiteSettingSerializer, WallpaperGroupSerializer, WallpaperSerializer,
+    WallpaperThumbSerializer
 )
 import os
 from django.conf import settings
+
 
 class IsAuthenticatedOrReadOnly(permissions.BasePermission):
     def has_permission(self, request, view):
@@ -15,12 +21,14 @@ class IsAuthenticatedOrReadOnly(permissions.BasePermission):
             return True
         return request.user and request.user.is_authenticated
 
+
 class UsuarioViewSet(viewsets.ModelViewSet):
     queryset = Usuario.objects.all()
     serializer_class = UsuarioSerializer
     permission_classes = [permissions.IsAuthenticated]
     filterset_fields = ['email', 'username']
     ordering_fields = ['nombre', 'email', 'id']
+
 
 class TableroViewSet(viewsets.ModelViewSet):
     queryset = Tablero.objects.all()
@@ -39,12 +47,14 @@ class TableroViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(creador=self.request.user)
 
+
 class TableroUsuarioViewSet(viewsets.ModelViewSet):
     queryset = TableroUsuario.objects.all()
     serializer_class = TableroUsuarioSerializer
     permission_classes = [permissions.IsAuthenticated]
     filterset_fields = ['tablero', 'usuario', 'tablero_id', 'usuario_id']
     ordering_fields = ['id']
+
 
 class TicketViewSet(viewsets.ModelViewSet):
     queryset = Ticket.objects.all()
@@ -59,6 +69,7 @@ class TicketViewSet(viewsets.ModelViewSet):
         if tablero_id:
             qs = qs.filter(tablero_id=tablero_id)
         return qs
+
 
 class ComentarioViewSet(viewsets.ModelViewSet):
     queryset = Comentario.objects.all()
@@ -77,6 +88,7 @@ class ComentarioViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(usuario=self.request.user)
 
+
 class NotificacionViewSet(viewsets.ModelViewSet):
     queryset = Notificacion.objects.all()
     serializer_class = NotificacionSerializer
@@ -86,6 +98,21 @@ class NotificacionViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         return Notificacion.objects.filter(usuario=self.request.user, leida=False)
+
+
+class WallpaperGroupViewSet(viewsets.ModelViewSet):
+    queryset = WallpaperGroup.objects.all()
+    serializer_class = WallpaperGroupSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    ordering_fields = ['orden', 'nombre']
+
+
+class WallpaperViewSet(viewsets.ModelViewSet):
+    queryset = Wallpaper.objects.all()
+    serializer_class = WallpaperSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    filterset_fields = ['group', 'activo']
+    ordering_fields = ['nombre', 'created_at']
 
 
 @api_view(['GET'])
@@ -200,6 +227,21 @@ def upload_file(request, bucket, path):
     file = request.FILES.get('file')
     if not file:
         return Response({'error': 'No file provided'}, status=400)
+
+    config = SiteSetting.load()
+
+    ext = os.path.splitext(file.name)[1].lower().lstrip('.')
+    if ext not in config.allowed_file_types:
+        return Response({
+            'error': f'Tipo de archivo no permitido: .{ext}',
+            'allowed': config.allowed_file_types
+        }, status=400)
+
+    max_bytes = config.max_file_size_mb * 1024 * 1024
+    if file.size > max_bytes:
+        return Response({
+            'error': f'El archivo excede el límite de {config.max_file_size_mb}MB'
+        }, status=400)
 
     upload_dir = os.path.join(settings.MEDIA_ROOT, bucket)
     os.makedirs(upload_dir, exist_ok=True)
@@ -324,3 +366,27 @@ def mark_ticket_notifications_read_view(request):
         usuario=request.user, ticket_id=ticket_id, leida=False
     ).update(leida=True)
     return Response({'updated': updated})
+
+
+@api_view(['GET'])
+@permission_classes([permissions.AllowAny])
+def site_setting_view(request):
+    config = SiteSetting.load()
+    return Response(SiteSettingSerializer(config).data)
+
+
+@api_view(['GET'])
+@permission_classes([permissions.AllowAny])
+def wallpapers_grouped_view(request):
+    groups = WallpaperGroup.objects.prefetch_related('wallpapers').all()
+    result = []
+    for group in groups:
+        wallpapers = group.wallpapers.filter(activo=True)
+        if wallpapers.exists():
+            result.append({
+                'id': group.id,
+                'nombre': group.nombre,
+                'icono': group.icono,
+                'wallpapers': WallpaperThumbSerializer(wallpapers, many=True).data
+            })
+    return Response(result)

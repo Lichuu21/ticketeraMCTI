@@ -1,5 +1,36 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
+from django.conf import settings
+import os
+
+
+class SiteSetting(models.Model):
+    nombre_sistema = models.CharField(max_length=200, default='Ticketera MCTI')
+    nombre_corto = models.CharField(max_length=50, default='Ticketera')
+    logo_pequeño = models.FileField(upload_to='config/', blank=True, default='')
+    logo_grande = models.FileField(upload_to='config/', blank=True, default='')
+    color_logo = models.CharField(max_length=7, default='#065E94')
+    color_fondo_logo = models.CharField(max_length=7, default='#FFFFFF')
+    color_sitio = models.CharField(max_length=7, default='#065E94')
+    max_file_size_mb = models.IntegerField(default=10, verbose_name='Tamaño máximo de archivo (MB)')
+    allowed_file_types = models.JSONField(default=list, verbose_name='Tipos de archivo permitidos')
+
+    class Meta:
+        db_table = 'site_settings'
+        verbose_name = 'Configuración del Sitio'
+        verbose_name_plural = 'Configuración del Sitio'
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def load(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+    def __str__(self):
+        return self.nombre_sistema
 
 
 class Usuario(AbstractUser):
@@ -27,13 +58,13 @@ class CambioPassword(models.Model):
         return f"{self.usuario.username} - debe_cambiar: {self.debe_cambiar}"
 
 
-
 class Tablero(models.Model):
     nombre = models.CharField(max_length=200)
     descripcion = models.TextField(blank=True, default='')
     creador = models.ForeignKey(Usuario, on_delete=models.CASCADE, related_name='tableros_creados')
     tipo = models.CharField(max_length=50, default='Trabajo')
     columnas = models.JSONField(default=list)
+    wallpaper_path = models.CharField(max_length=500, blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -95,3 +126,57 @@ class Notificacion(models.Model):
     class Meta:
         db_table = 'notificaciones'
         ordering = ['-created_at']
+
+class WallpaperGroup(models.Model):
+    nombre = models.CharField(max_length=100, unique=True)
+    icono = models.CharField(max_length=10, blank=True, default='')
+    orden = models.IntegerField(default=0)
+
+    class Meta:
+        db_table = 'wallpaper_groups'
+        ordering = ['orden', 'nombre']
+        verbose_name = 'Grupo de Wallpapers'
+        verbose_name_plural = 'Grupos de Wallpapers'
+
+    def __str__(self):
+        return self.nombre
+
+class Wallpaper(models.Model):
+    nombre = models.CharField(max_length=150, unique=True)
+    group = models.ForeignKey(WallpaperGroup, on_delete=models.CASCADE, related_name='wallpapers', verbose_name='Grupo')
+    imagen = models.FileField(upload_to='wallpapers/')
+    thumb = models.FileField(upload_to='wallpapers/thumbs/', blank=True, default='')
+    activo = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'wallpapers'
+        ordering = ['group__orden', 'nombre']
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        if self.imagen and not self.thumb:
+            self._generate_thumb()
+
+    def _generate_thumb(self):
+        try:
+            from PIL import Image
+        except ImportError:
+            return
+
+        img_path = self.imagen.path
+        thumb_dir = os.path.join(settings.MEDIA_ROOT, 'wallpapers', 'thumbs')
+        os.makedirs(thumb_dir, exist_ok=True)
+
+        thumb_filename = f"thumb_{os.path.basename(img_path)}"
+        thumb_path = os.path.join(thumb_dir, thumb_filename)
+
+        with Image.open(img_path) as img:
+            img.thumbnail((200, 200))
+            img.save(thumb_path, quality=85)
+
+        self.thumb = f'wallpapers/thumbs/{thumb_filename}'
+        super().save(update_fields=['thumb'])
+
+    def __str__(self):
+        return self.nombre

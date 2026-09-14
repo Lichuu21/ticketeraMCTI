@@ -26,6 +26,7 @@ services:
       - .env
     volumes:
       - ./backend:/app
+      - media_data:/app/media
     ports:
       - "8071:8000"
     depends_on:
@@ -72,6 +73,7 @@ services:
 
 volumes:
   mariadb_data:
+  media_data:
 
 networks:
   ticket-net:

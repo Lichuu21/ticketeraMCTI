@@ -26,6 +26,21 @@ else:
     print('Admin user already exists.')
 " || true
 
+# Create default SiteSetting if it doesn't exist
+python manage.py shell -c "
+from core.models import SiteSetting
+config = SiteSetting.load()
+if not config.allowed_file_types:
+    config.allowed_file_types = [
+        'pdf', 'jpeg', 'jpg', 'png', 'webp', 'txt', 'md',
+        'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'
+    ]
+    config.save()
+    print('SiteSetting default file types configured.')
+else:
+    print('SiteSetting already configured.')
+" || true
+
 echo "Starting server..."
 if [ "$DJANGO_DEBUG" = "True" ]; then
     exec python manage.py runserver 0.0.0.0:8000

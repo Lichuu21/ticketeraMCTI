@@ -9,6 +9,8 @@ router.register(r'tablero-usuarios', views.TableroUsuarioViewSet)
 router.register(r'tickets', views.TicketViewSet)
 router.register(r'comentarios', views.ComentarioViewSet)
 router.register(r'notificaciones', views.NotificacionViewSet)
+router.register(r'wallpaper-groups', views.WallpaperGroupViewSet)
+router.register(r'wallpapers', views.WallpaperViewSet)
 
 urlpatterns = [
     path('health/', views.health_check, name='health'),
@@ -27,5 +29,7 @@ urlpatterns = [
     path('tablero-usuarios/update-role/', views.update_member_role_view, name='tablero-usuarios-update-role'),
     path('tablero-usuarios/update-permisos/', views.update_member_permisos_view, name='tablero-usuarios-update-permisos'),
     path('notificaciones/mark-ticket-read/', views.mark_ticket_notifications_read_view, name='notificaciones-mark-ticket-read'),
+    path('configuracion/', views.site_setting_view, name='site-setting'),
+    path('wallpapers-grouped/', views.wallpapers_grouped_view, name='wallpapers-grouped'),
     path('', include(router.urls)),
 ]

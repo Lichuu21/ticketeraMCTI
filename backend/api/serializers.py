@@ -1,5 +1,59 @@
 from rest_framework import serializers
-from core.models import Usuario, Tablero, TableroUsuario, Ticket, Comentario, Notificacion, CambioPassword
+from core.models import (
+    SiteSetting, Usuario, Tablero, TableroUsuario, Ticket,
+    Comentario, Notificacion, CambioPassword, WallpaperGroup, Wallpaper
+)
+
+
+class SiteSettingSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SiteSetting
+        fields = '__all__'
+
+
+class WallpaperGroupSerializer(serializers.ModelSerializer):
+    wallpapers = serializers.SerializerMethodField()
+
+    class Meta:
+        model = WallpaperGroup
+        fields = ['id', 'nombre', 'icono', 'orden', 'wallpapers']
+
+    def get_wallpapers(self, obj):
+        wallpapers = obj.wallpapers.filter(activo=True)
+        return WallpaperThumbSerializer(wallpapers, many=True).data
+
+
+class WallpaperThumbSerializer(serializers.ModelSerializer):
+    thumb_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Wallpaper
+        fields = ['id', 'nombre', 'thumb_url']
+
+    def get_thumb_url(self, obj):
+        if obj.thumb:
+            return f'/media/{obj.thumb}'
+        return f'/media/{obj.imagen.name}'
+
+
+class WallpaperSerializer(serializers.ModelSerializer):
+    imagen_url = serializers.SerializerMethodField()
+    thumb_url = serializers.SerializerMethodField()
+    group_nombre = serializers.CharField(source='group.nombre', read_only=True)
+
+    class Meta:
+        model = Wallpaper
+        fields = ['id', 'nombre', 'group', 'group_nombre', 'imagen', 'imagen_url', 'thumb', 'thumb_url', 'activo', 'created_at']
+
+    def get_imagen_url(self, obj):
+        if obj.imagen:
+            return f'/media/{obj.imagen.name}'
+        return ''
+
+    def get_thumb_url(self, obj):
+        if obj.thumb:
+            return f'/media/{obj.thumb}'
+        return f'/media/{obj.imagen.name}' if obj.imagen else ''
 
 
 class UsuarioSerializer(serializers.ModelSerializer):
@@ -25,7 +79,7 @@ class TableroSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Tablero
-        fields = ['id', 'nombre', 'descripcion', 'creador', 'creador_id', 'creador_nombre', 'tipo', 'columnas', 'created_at']
+        fields = ['id', 'nombre', 'descripcion', 'creador', 'creador_id', 'creador_nombre', 'tipo', 'columnas', 'wallpaper_path', 'created_at']
         read_only_fields = ['creador']
 
     def to_representation(self, instance):
