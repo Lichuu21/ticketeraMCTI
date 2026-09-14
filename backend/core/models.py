@@ -12,8 +12,43 @@ class Usuario(AbstractUser):
     class Meta:
         db_table = 'usuarios'
 
+    def save(self, *args, **kwargs):
+        if not self.username and self.email:
+            self.username = self.email.strip()
+        if not self.nombre or not self.nombre.strip():
+            if self.first_name and self.last_name:
+                self.nombre = f"{self.first_name} {self.last_name}".strip()
+            elif self.first_name:
+                self.nombre = self.first_name.strip()
+            elif self.email:
+                local_part = self.email.split('@')[0]
+                self.nombre = local_part.replace('.', ' ').replace('_', ' ').replace('-', ' ').title()
+            elif self.username:
+                self.nombre = self.username.split('@')[0].replace('.', ' ').title()
+            else:
+                self.nombre = 'Usuario'
+
+        if not self.first_name or not self.first_name.strip():
+            self.first_name = self.nombre
+
+        if not self.dependencia or not self.dependencia.strip():
+            self.dependencia = 'Sin Especificar'
+
+        if not self.piso or not self.piso.strip():
+            self.piso = '-'
+
+        if not self.rol or not self.rol.strip():
+            self.rol = 'Administrador' if (self.is_staff or self.is_superuser) else 'Usuario'
+
+        if str(self.rol).strip().lower() in ['administrador', 'admin', 'jefe']:
+            self.is_staff = True
+            self.is_superuser = True
+
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return self.nombre or self.email
+
 
 
 class CambioPassword(models.Model):
