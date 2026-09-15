@@ -7,51 +7,62 @@ import { useAuth } from '../context/AuthContext';
 import { parseTableroConfig } from '../utils/configTablero';
 import EstadisticasPanel from './EstadisticasPanel';
 
-const PERMISOS_DEFAULT = {
-  Administrador: { ver_tablero: true, crear_tickets: true, editar_tickets: true, mover_tarjetas: true, eliminar_tickets: true, gestionar_comentarios: true, ver_estadisticas: true, gestionar_usuarios: true },
-  'Jefe de Departamento': { ver_tablero: true, crear_tickets: true, editar_tickets: true, mover_tarjetas: true, eliminar_tickets: false, gestionar_comentarios: true, ver_estadisticas: true, gestionar_usuarios: true },
-  'Mesa de ayuda': { ver_tablero: true, crear_tickets: true, editar_tickets: true, mover_tarjetas: true, eliminar_tickets: false, gestionar_comentarios: true, ver_estadisticas: false, gestionar_usuarios: false },
-  Usuario: { ver_tablero: true, crear_tickets: true, editar_tickets: false, mover_tarjetas: false, eliminar_tickets: false, gestionar_comentarios: true, ver_estadisticas: false, gestionar_usuarios: false },
-  Director: { ver_tablero: true, crear_tickets: false, editar_tickets: false, mover_tarjetas: false, eliminar_tickets: false, gestionar_comentarios: true, ver_estadisticas: true, gestionar_usuarios: false },
-  Visualizador: { ver_tablero: true, crear_tickets: false, editar_tickets: false, mover_tarjetas: false, eliminar_tickets: false, gestionar_comentarios: false, ver_estadisticas: false, gestionar_usuarios: false },
-  'Soporte Tecnico': { ver_tablero: true, crear_tickets: false, editar_tickets: true, mover_tarjetas: true, eliminar_tickets: false, gestionar_comentarios: true, ver_estadisticas: false, gestionar_usuarios: false }
+export const PERMISOS_ADMIN = {
+  ver_tablero: true,
+  crear_tickets: true,
+  editar_tickets: true,
+  mover_tarjetas: true,
+  eliminar_tickets: true,
+  gestionar_comentarios: true,
+  ver_estadisticas: true,
+  gestionar_usuarios: true
+};
+
+export const PERMISOS_MIEMBRO_DEFAULT = {
+  ver_tablero: true,
+  crear_tickets: true,
+  editar_tickets: true,
+  mover_tarjetas: true,
+  eliminar_tickets: false,
+  gestionar_comentarios: true,
+  ver_estadisticas: false,
+  gestionar_usuarios: false
 };
 
 const DEPARTAMENTOS = ['Soporte Técnico', 'Telefonía'];
 
-const getPermisosUsuario = (u) => {
-  const rolLower = (u?.rol || '').toLowerCase();
-  const isBossOrAdmin = rolLower.includes('admin') || rolLower.includes('jefe');
+const getPermisosUsuario = (u, tablero) => {
+  if (!u) return PERMISOS_MIEMBRO_DEFAULT;
 
-  if (isBossOrAdmin) {
-    return {
-      ver_tablero: true,
-      crear_tickets: true,
-      editar_tickets: true,
-      mover_tarjetas: true,
-      eliminar_tickets: true,
-      gestionar_comentarios: true,
-      ver_estadisticas: true,
-      gestionar_usuarios: true
-    };
+  const isGlobalAdmin = !!(u?.is_superuser || u?.is_staff);
+  const isCreator = !!(tablero && (
+    String(tablero.creador) === String(u?.id) ||
+    String(tablero.creador_id) === String(u?.id) ||
+    (typeof tablero.creador === 'object' && String(tablero.creador?.id) === String(u?.id))
+  ));
+  const isBoardAdmin = (u?.rol_en_tablero || '').toLowerCase() === 'administrador';
+
+  if (isGlobalAdmin || isCreator || isBoardAdmin) {
+    return PERMISOS_ADMIN;
   }
 
-  const customPerms = (u?.permisos && Object.keys(u.permisos).length > 0) ? u.permisos : u?.permisos_tablero;
-  if (customPerms && Object.keys(customPerms).length > 0) {
+  let customPerms = (u?.permisos && Object.keys(u.permisos).length > 0) ? u.permisos : u?.permisos_tablero;
+  if (typeof customPerms === 'string') {
+    try {
+      customPerms = JSON.parse(customPerms);
+    } catch {
+      customPerms = null;
+    }
+  }
+
+  if (customPerms && typeof customPerms === 'object' && Object.keys(customPerms).length > 0) {
     return {
-      ver_tablero: true,
-      crear_tickets: true,
-      editar_tickets: true,
-      mover_tarjetas: true,
-      eliminar_tickets: false,
-      gestionar_comentarios: true,
-      ver_estadisticas: false,
-      gestionar_usuarios: false,
+      ...PERMISOS_MIEMBRO_DEFAULT,
       ...customPerms
     };
   }
 
-  return PERMISOS_DEFAULT[u?.rol_en_tablero] || PERMISOS_DEFAULT['Usuario'];
+  return PERMISOS_MIEMBRO_DEFAULT;
 };
 
 const COLUMNAS_BASE = ['Solicitud', 'En proceso', 'En espera', 'Resuelto'];
@@ -217,20 +228,6 @@ const TicketCard = React.memo(({ ticket, index, onClick, isReadOnly, allTickets,
       )}
     </Draggable>
   );
-}, (prevProps, nextProps) => {
-  return prevProps.ticket.id === nextProps.ticket.id &&
-    prevProps.ticket.titulo === nextProps.ticket.titulo &&
-    prevProps.ticket.estado === nextProps.ticket.estado &&
-    prevProps.ticket.prioridad === nextProps.ticket.prioridad &&
-    prevProps.ticket.area === nextProps.ticket.area &&
-    prevProps.ticket.responsable === nextProps.ticket.responsable &&
-    prevProps.ticket.solicitante === nextProps.ticket.solicitante &&
-    prevProps.ticket.seccion_solicitante === nextProps.ticket.seccion_solicitante &&
-    prevProps.ticket.fecha_creacion === nextProps.ticket.fecha_creacion &&
-    JSON.stringify(prevProps.ticket.checklist) === JSON.stringify(nextProps.ticket.checklist) &&
-    prevProps.allTickets?.length === nextProps.allTickets?.length &&
-    prevProps.index === nextProps.index &&
-    prevProps.isReadOnly === nextProps.isReadOnly;
 });
 
 const TicketForm = ({ initialConfig, onSubmit, onCancel, user, usuarios, tipoTablero, setTicketAEliminar, setModalOpen }) => {
@@ -244,8 +241,10 @@ const TicketForm = ({ initialConfig, onSubmit, onCancel, user, usuarios, tipoTab
   }, [usuarios, user]);
 
   const misPermisos = React.useMemo(() => {
-    return getPermisosUsuario(currentUserInBoard);
+    return getPermisosUsuario(currentUserInBoard, initialConfig?.tablero || tableroActual);
   }, [currentUserInBoard]);
+
+  const isInputDisabled = localConfig.id ? !misPermisos.editar_tickets : !misPermisos.crear_tickets;
 
   const responsablesSet = React.useMemo(() => {
     return new Set(localConfig.responsables || []);
@@ -385,7 +384,7 @@ const TicketForm = ({ initialConfig, onSubmit, onCancel, user, usuarios, tipoTab
               </button>
             )}
             <h2 className="text-2xl font-bold text-slate-800 dark:text-white bg-clip-text text-transparent bg-gradient-to-r from-[#065E94] to-[#043d63] dark:from-[#2a83bd] dark:to-[#4ea8de]">
-              {localConfig.id ? (user?.rol === 'Soporte Tecnico' ? 'Ver Ticket' : (tipoTablero === 'Personal' ? 'Editar Nota' : 'Editar Ticket')) : (localConfig.prioridad === 'Nota' || tipoTablero === 'Personal' ? 'Nueva Nota' : 'Nuevo Ticket')}
+              {localConfig.id ? (isInputDisabled ? 'Ver Ticket' : (tipoTablero === 'Personal' ? 'Editar Nota' : 'Editar Ticket')) : (localConfig.prioridad === 'Nota' || tipoTablero === 'Personal' ? 'Nueva Nota' : 'Nuevo Ticket')}
             </h2>
           </div>
           <div className="flex items-center gap-2">
@@ -416,7 +415,7 @@ const TicketForm = ({ initialConfig, onSubmit, onCancel, user, usuarios, tipoTab
         <div className="space-y-4 flex-1">
           <div>
             <label className="block text-xs font-bold text-slate-500 dark:text-neutral-400 uppercase tracking-widest mb-1.5 truncate">Título {localConfig.prioridad === 'Nota' ? 'de la Nota' : 'del Ticket'}</label>
-            <input required autoFocus type="text" value={localConfig.titulo} onChange={e => setLocalConfig({ ...localConfig, titulo: e.target.value })} className="w-full bg-white border border-slate-200 dark:border-[var(--border-accent)] dark:bg-[var(--bg-main)] dark:text-white rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-[#065E94]/50 outline-none transition-all shadow-sm dark:shadow-none" placeholder={localConfig.prioridad === 'Nota' ? "Ej. Recordatorio..." : (tipoTablero === 'Personal' ? "Ej. Comprar café..." : "Ej. Computadora no enciende...")} disabled={user?.rol === 'Soporte Tecnico'} />
+            <input required autoFocus type="text" value={localConfig.titulo} onChange={e => setLocalConfig({ ...localConfig, titulo: e.target.value })} className="w-full bg-white border border-slate-200 dark:border-[var(--border-accent)] dark:bg-[var(--bg-main)] dark:text-white rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-[#065E94]/50 outline-none transition-all shadow-sm dark:shadow-none" placeholder={localConfig.prioridad === 'Nota' ? "Ej. Recordatorio..." : (tipoTablero === 'Personal' ? "Ej. Comprar café..." : "Ej. Computadora no enciende...")} disabled={isInputDisabled} />
           </div>
 
           {tipoTablero !== 'Personal' && localConfig.prioridad !== 'Nota' && (
@@ -425,25 +424,25 @@ const TicketForm = ({ initialConfig, onSubmit, onCancel, user, usuarios, tipoTab
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-500 dark:text-neutral-400 uppercase tracking-widest mb-1.5 truncate">Nombre / Solicitante</label>
-                  <input type="text" value={localConfig.solicitante} onChange={e => setLocalConfig({ ...localConfig, solicitante: e.target.value })} className="w-full bg-white border border-slate-200 dark:border-[var(--border-accent)] dark:bg-[var(--bg-main)] dark:text-white rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-[#065E94]/50 outline-none transition-all shadow-sm dark:shadow-none" placeholder="Ej. Juan Pérez" disabled={user?.rol === 'Soporte Tecnico'} />
+                  <input type="text" value={localConfig.solicitante} onChange={e => setLocalConfig({ ...localConfig, solicitante: e.target.value })} className="w-full bg-white border border-slate-200 dark:border-[var(--border-accent)] dark:bg-[var(--bg-main)] dark:text-white rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-[#065E94]/50 outline-none transition-all shadow-sm dark:shadow-none" placeholder="Ej. Juan Pérez" disabled={isInputDisabled} />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-500 dark:text-neutral-400 uppercase tracking-widest mb-1.5 truncate" title="Sección / Dependencia">Dependencia / Sección</label>
-                  <input type="text" value={localConfig.seccion_solicitante} onChange={e => setLocalConfig({ ...localConfig, seccion_solicitante: e.target.value })} className="w-full bg-white border border-slate-200 dark:border-[var(--border-accent)] dark:bg-[var(--bg-main)] dark:text-white rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-[#065E94]/50 outline-none transition-all shadow-sm dark:shadow-none" placeholder="Ej. Compras, RRHH..." disabled={user?.rol === 'Soporte Tecnico'} />
+                  <input type="text" value={localConfig.seccion_solicitante} onChange={e => setLocalConfig({ ...localConfig, seccion_solicitante: e.target.value })} className="w-full bg-white border border-slate-200 dark:border-[var(--border-accent)] dark:bg-[var(--bg-main)] dark:text-white rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-[#065E94]/50 outline-none transition-all shadow-sm dark:shadow-none" placeholder="Ej. Compras, RRHH..." disabled={isInputDisabled} />
                 </div>
               </div>
 
               {/* Row 2: Email del Solicitante - Horizontal a todo el ancho */}
               <div>
                 <label className="block text-xs font-bold text-slate-500 dark:text-neutral-400 uppercase tracking-widest mb-1.5 truncate">Email del Solicitante</label>
-                <input type="email" value={localConfig.email_solicitante || ''} onChange={e => setLocalConfig({ ...localConfig, email_solicitante: e.target.value })} className="w-full bg-white border border-slate-200 dark:border-[var(--border-accent)] dark:bg-[var(--bg-main)] dark:text-white rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-[#065E94]/50 outline-none transition-all shadow-sm dark:shadow-none" placeholder="ejemplo@correo.com" disabled={user?.rol === 'Soporte Tecnico'} />
+                <input type="email" value={localConfig.email_solicitante || ''} onChange={e => setLocalConfig({ ...localConfig, email_solicitante: e.target.value })} className="w-full bg-white border border-slate-200 dark:border-[var(--border-accent)] dark:bg-[var(--bg-main)] dark:text-white rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-[#065E94]/50 outline-none transition-all shadow-sm dark:shadow-none" placeholder="ejemplo@correo.com" disabled={isInputDisabled} />
               </div>
 
               {/* Row 3: Prioridad & Área (Clasificación del Ticket) */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-500 dark:text-neutral-400 uppercase tracking-widest mb-1.5 truncate">Prioridad</label>
-                  <select value={localConfig.prioridad} onChange={e => setLocalConfig({ ...localConfig, prioridad: e.target.value })} className="w-full bg-white border border-slate-200 dark:border-[var(--border-accent)] dark:bg-[var(--bg-main)] dark:text-white rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-[#065E94]/50 outline-none shadow-sm dark:shadow-none cursor-pointer" disabled={user?.rol === 'Soporte Tecnico'}>
+                  <select value={localConfig.prioridad} onChange={e => setLocalConfig({ ...localConfig, prioridad: e.target.value })} className="w-full bg-white border border-slate-200 dark:border-[var(--border-accent)] dark:bg-[var(--bg-main)] dark:text-white rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-[#065E94]/50 outline-none shadow-sm dark:shadow-none cursor-pointer" disabled={isInputDisabled}>
                     <option value="Baja">Baja</option>
                     <option value="Media">Media</option>
                     <option value="Alta">Alta</option>
@@ -452,7 +451,7 @@ const TicketForm = ({ initialConfig, onSubmit, onCancel, user, usuarios, tipoTab
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-500 dark:text-neutral-400 uppercase tracking-widest mb-1.5 truncate">Área</label>
-                  <select required={tipoTablero !== 'Personal' && localConfig.prioridad !== 'Nota'} value={localConfig.area} onChange={e => setLocalConfig({ ...localConfig, area: e.target.value })} className="w-full bg-white border border-slate-200 dark:border-[var(--border-accent)] dark:bg-[var(--bg-main)] dark:text-white rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-[#065E94]/50 outline-none transition-all shadow-sm dark:shadow-none cursor-pointer" disabled={user?.rol === 'Soporte Tecnico'}>
+                  <select required={tipoTablero !== 'Personal' && localConfig.prioridad !== 'Nota'} value={localConfig.area} onChange={e => setLocalConfig({ ...localConfig, area: e.target.value })} className="w-full bg-white border border-slate-200 dark:border-[var(--border-accent)] dark:bg-[var(--bg-main)] dark:text-white rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-[#065E94]/50 outline-none transition-all shadow-sm dark:shadow-none cursor-pointer" disabled={isInputDisabled}>
                     <option value="" disabled>Seleccione un área...</option>
                     <option value="Soporte">Soporte</option>
                     <option value="Redes">Redes</option>
@@ -466,7 +465,7 @@ const TicketForm = ({ initialConfig, onSubmit, onCancel, user, usuarios, tipoTab
           {tipoTablero === 'Personal' && localConfig.prioridad !== 'Nota' && (
             <div>
               <label className="block text-xs font-bold text-slate-500 dark:text-neutral-400 uppercase tracking-widest mb-1.5 truncate">Prioridad</label>
-              <select value={localConfig.prioridad} onChange={e => setLocalConfig({ ...localConfig, prioridad: e.target.value })} className="w-full bg-white border border-slate-200 dark:border-[var(--border-accent)] dark:bg-[var(--bg-main)] dark:text-white rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-[#065E94]/50 outline-none shadow-sm dark:shadow-none cursor-pointer" disabled={user?.rol === 'Soporte Tecnico'}>
+              <select value={localConfig.prioridad} onChange={e => setLocalConfig({ ...localConfig, prioridad: e.target.value })} className="w-full bg-white border border-slate-200 dark:border-[var(--border-accent)] dark:bg-[var(--bg-main)] dark:text-white rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-[#065E94]/50 outline-none shadow-sm dark:shadow-none cursor-pointer" disabled={isInputDisabled}>
                 <option value="Baja">Baja</option>
                 <option value="Media">Media</option>
                 <option value="Alta">Alta</option>
@@ -477,7 +476,7 @@ const TicketForm = ({ initialConfig, onSubmit, onCancel, user, usuarios, tipoTab
 
           <div>
             <label className="block text-xs font-bold text-slate-500 dark:text-neutral-400 uppercase tracking-widest mb-1.5 truncate">Descripción Detallada (Opcional)</label>
-            <textarea value={localConfig.descripcion} onChange={e => setLocalConfig({ ...localConfig, descripcion: e.target.value })} rows={3} className="w-full bg-white border border-slate-200 dark:border-[var(--border-accent)] dark:bg-[var(--bg-main)] dark:text-white rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-[#065E94]/50 outline-none transition-all shadow-sm dark:shadow-none resize-none" placeholder={localConfig.prioridad === 'Nota' ? "Escribe el detalle de tu nota..." : "Describe el problema con el mayor detalle posible..."} disabled={user?.rol === 'Soporte Tecnico'} />
+            <textarea value={localConfig.descripcion} onChange={e => setLocalConfig({ ...localConfig, descripcion: e.target.value })} rows={3} className="w-full bg-white border border-slate-200 dark:border-[var(--border-accent)] dark:bg-[var(--bg-main)] dark:text-white rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-[#065E94]/50 outline-none transition-all shadow-sm dark:shadow-none resize-none" placeholder={localConfig.prioridad === 'Nota' ? "Escribe el detalle de tu nota..." : "Describe el problema con el mayor detalle posible..."} disabled={isInputDisabled} />
           </div>
         </div>
 
@@ -579,8 +578,8 @@ export default function TableroKanban() {
   const [usuarioAAñadir, setUsuarioAAñadir] = useState('');
   const [rolesEditados, setRolesEditados] = useState({});
 
-  const currentUserInBoard = usuarios.find(u => u.id === user?.id) || user;
-  const misPermisos = getPermisosUsuario(currentUserInBoard);
+  const currentUserInBoard = usuarios.find(u => String(u.id) === String(user?.id)) || user;
+  const misPermisos = getPermisosUsuario(currentUserInBoard, tableroActual);
   const [ticketAEliminar, setTicketAEliminar] = useState(null);
   const [expandedUserPerms, setExpandedUserPerms] = useState(null);
 
@@ -756,8 +755,6 @@ export default function TableroKanban() {
     id: null, titulo: '', descripcion: '', area: '', prioridad: 'Media', responsables: [], solicitante: '', seccion_solicitante: '', email_solicitante: ''
   });
 
-  const [draggingSourceId, setDraggingSourceId] = useState(null);
-
   // 1. Carga inicial de datos y WebSockets (Realtime)
   const ticketActivoRef = useRef(null);
   useEffect(() => {
@@ -826,15 +823,24 @@ export default function TableroKanban() {
 
     const { data: perfilGlobal } = await api.usuarios.getById(user.id);
 
-    const isGlobalAdmin = perfilGlobal?.rol === 'Administrador';
+    const isGlobalAdmin = perfilGlobal?.rol === 'Administrador' || !!(user?.is_staff || user?.is_superuser);
+    const isCreator = String(tablero.creador) === String(user.id) || String(tablero.creador_id) === String(user.id) || (typeof tablero.creador === 'object' && String(tablero.creador?.id) === String(user.id));
 
     const { data: membresiasData, error: memErr } = await api.tableroUsuarios.getByTablero(tableroId);
-    const membresia = membresiasData?.find(m => m.usuario_id === user.id) || null;
+    let membresia = membresiasData?.find(m => String(m.usuario_id) === String(user.id)) || null;
 
-    if ((memErr || !membresia) && !isGlobalAdmin) {
+    if ((memErr || (!membresia && !isCreator)) && !isGlobalAdmin) {
       console.error("No tienes acceso a este tablero");
       navigate('/');
       return;
+    }
+
+    if (!membresia && isCreator) {
+      api.tableroUsuarios.addMember({
+        tablero_id: tableroId,
+        usuario_id: user.id,
+        rol_en_tablero: 'Administrador'
+      });
     }
 
     setTableroActual({ ...tablero, mi_rol: membresia?.rol_en_tablero || 'Administrador Global' });
@@ -913,6 +919,10 @@ export default function TableroKanban() {
   // 2. Drag & Drop - Actualización optimista con reordenamiento
   const onDragEnd = async (result) => {
     setDraggingSourceId(null);
+    if (!misPermisos.mover_tarjetas) {
+      alert('No tienes permisos para mover tarjetas en este tablero.');
+      return;
+    }
     const { destination, source, draggableId } = result;
     if (!destination) return;
 
@@ -1381,15 +1391,12 @@ export default function TableroKanban() {
     e.preventDefault();
     if (!usuarioAAñadir) return;
 
-    const uAA = usuarios.find(usr => usr.id === usuarioAAñadir);
-    const defaultPerms = uAA?.rol === 'Soporte' ? PERMISOS_DEFAULT['Soporte Tecnico'] : PERMISOS_DEFAULT['Usuario'];
-
     const { error } = await api.tableroUsuarios.addMember({
-          tablero_id: tableroId,
-          usuario_id: usuarioAAñadir,
-          rol_en_tablero: uAA?.rol || 'Usuario',
-          permisos: defaultPerms
-        });
+      tablero_id: tableroId,
+      usuario_id: usuarioAAñadir,
+      rol_en_tablero: 'Miembro',
+      permisos: PERMISOS_MIEMBRO_DEFAULT
+    });
 
     if (error) {
       console.error('Error al añadir miembro:', error);
@@ -2018,7 +2025,7 @@ export default function TableroKanban() {
             </div>
 
             {/* Tablero Kanban */}
-            <DragDropContext onDragEnd={onDragEnd} onDragStart={(start) => setDraggingSourceId(start.source.droppableId)}>
+            <DragDropContext onDragEnd={onDragEnd}>
               <div ref={kanbanContainerRef} className={`flex ${columnasActivas.length > 4 ? 'gap-3.5' : 'gap-4 sm:gap-6'} pb-6 items-start flex-1 min-h-0 overflow-x-auto overflow-y-hidden w-full px-2 pr-12 snap-x snap-mandatory scroll-smooth custom-scrollbar`}>
                 {columnasActivas.map(columnId => (
                   <div
@@ -2028,7 +2035,7 @@ export default function TableroKanban() {
                         : columnasActivas.length === 5
                           ? 'w-[80vw] sm:w-[285px]'
                           : 'w-[75vw] sm:w-[250px] min-w-[250px]'
-                      } flex flex-col rounded-2xl p-2 bg-slate-200/60 dark:bg-[var(--bg-column)] border border-slate-300/50 dark:border-[var(--border-accent)]/30 max-h-[calc(100vh-140px)] sm:max-h-[680px] min-h-[250px] shadow-sm relative transition-all duration-200 snap-center sm:snap-none ${draggingSourceId === columnId ? 'z-[1000]' : 'z-0'}`}
+                      } flex flex-col rounded-2xl p-2 bg-slate-200/60 dark:bg-[var(--bg-column)] border border-slate-300/50 dark:border-[var(--border-accent)]/30 max-h-[calc(100vh-140px)] sm:max-h-[680px] min-h-[250px] shadow-sm relative transition-all duration-200 snap-center sm:snap-none`}
                   >
                     <div className="flex justify-between items-center mb-3 pt-2 px-3">
                       <h2 className="font-extrabold text-slate-700/80 dark:text-neutral-200 text-[15px] uppercase tracking-wide">{columnId}</h2>
@@ -2060,7 +2067,7 @@ export default function TableroKanban() {
                                 ticket={ticket}
                                 index={index}
                                 onClick={handleTicketClick}
-                                isReadOnly={!getPermisosUsuario(user).mover_tarjetas}
+                                isReadOnly={!misPermisos.mover_tarjetas}
                                 allTickets={tickets}
                                 totalCols={columnasActivas.length}
                               />
@@ -2346,7 +2353,7 @@ export default function TableroKanban() {
             </button>
 
             {/* Formulario Izquierda (Añadir Miembro) */}
-            {getPermisosUsuario(user).gestionar_usuarios && (
+            {misPermisos.gestionar_usuarios && (
               <div className="flex-[0.8] p-4 sm:p-6 md:p-9 flex flex-col bg-slate-50/50 dark:bg-black/10 border-b md:border-b-0 md:border-r border-slate-200/60 dark:border-[var(--border-accent)]/50 pr-12 md:pr-6">
                 <div className="max-w-xs mx-auto w-full">
                   <h2 className="text-lg sm:text-xl md:text-2xl font-black text-slate-800 dark:text-white mb-1 sm:mb-2 tracking-tight">Añadir Miembro</h2>
@@ -2427,7 +2434,7 @@ export default function TableroKanban() {
 
                         {/* Controles del Miembro */}
                         <div className="flex items-center gap-1 shrink-0">
-                          {getPermisosUsuario(user).gestionar_usuarios && (
+                          {misPermisos.gestionar_usuarios && (
                             <>
                               <button
                                 onClick={(e) => { e.stopPropagation(); setExpandedUserPerms(expandedUserPerms === u.id ? null : u.id); }}
@@ -2452,7 +2459,7 @@ export default function TableroKanban() {
                       </div>
 
                       {/* Permisos Personalizados (Acordeón) */}
-                      {getPermisosUsuario(user).gestionar_usuarios && expandedUserPerms === u.id && (
+                      {misPermisos.gestionar_usuarios && expandedUserPerms === u.id && (
                         <div className="mt-4 pt-4 border-t border-slate-200/60 dark:border-[var(--border-accent)]/30 w-full animate-in fade-in slide-in-from-top-2 duration-200">
                           <div className="flex items-center justify-between mb-4">
                             <p className="text-[10px] font-black text-slate-400 dark:text-neutral-500 uppercase tracking-widest">Permisos del Miembro</p>
@@ -2468,7 +2475,7 @@ export default function TableroKanban() {
                               { key: 'ver_estadisticas', label: 'Estadísticas' },
                               { key: 'gestionar_usuarios', label: 'Gestión Usuarios' }
                             ].map(perm => {
-                              const uPerms = getPermisosUsuario(u);
+                              const uPerms = getPermisosUsuario(u, tableroActual);
                               const hasPerm = !!uPerms[perm.key];
                               return (
                                 <label key={perm.key} className="flex items-center gap-3 cursor-pointer select-none group/sw py-1 px-1.5 rounded-lg hover:bg-slate-100/50 dark:hover:bg-white/5 transition-all">

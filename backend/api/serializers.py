@@ -59,7 +59,7 @@ class WallpaperSerializer(serializers.ModelSerializer):
 class UsuarioSerializer(serializers.ModelSerializer):
     class Meta:
         model = Usuario
-        fields = ['id', 'username', 'email', 'nombre', 'dependencia', 'piso', 'rol', 'debe_cambiar_password']
+        fields = ['id', 'username', 'email', 'nombre', 'dependencia', 'piso', 'rol', 'debe_cambiar_password', 'is_staff', 'is_superuser']
 
 
 class CambioPasswordSerializer(serializers.ModelSerializer):

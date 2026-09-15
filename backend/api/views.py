@@ -39,13 +39,23 @@ class TableroViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        if user.is_staff:
+        if not user.is_authenticated:
+            return Tablero.objects.none()
+
+        if self.request.query_params.get('all') == 'true' and user.is_staff:
             return Tablero.objects.all()
+
+        from django.db.models import Q
         tablero_ids = TableroUsuario.objects.filter(usuario=user).values_list('tablero_id', flat=True)
-        return Tablero.objects.filter(id__in=tablero_ids)
+        return Tablero.objects.filter(Q(creador=user) | Q(id__in=tablero_ids)).distinct()
 
     def perform_create(self, serializer):
-        serializer.save(creador=self.request.user)
+        tablero = serializer.save(creador=self.request.user)
+        TableroUsuario.objects.get_or_create(
+            tablero=tablero,
+            usuario=self.request.user,
+            defaults={'rol_en_tablero': 'Administrador'}
+        )
 
 
 class TableroUsuarioViewSet(viewsets.ModelViewSet):
@@ -125,30 +135,57 @@ def health_check(request):
 @permission_classes([permissions.AllowAny])
 def login_view(request):
     from django.contrib.auth import authenticate, login
-    email = request.data.get('email', '')
+    from django.db import models
+    email_or_username = request.data.get('email', '').strip()
     password = request.data.get('password', '')
-    user = authenticate(request, username=email, password=password)
+
+    user = authenticate(request, username=email_or_username, password=password)
+
+    if user is None and email_or_username:
+        # Search by email or username case-insensitively
+        user_obj = Usuario.objects.filter(
+            models.Q(email__iexact=email_or_username) | models.Q(username__iexact=email_or_username)
+        ).first()
+
+        if user_obj:
+            user = authenticate(request, username=user_obj.username, password=password)
+
+            # Legacy plain-text password fallback if check_password fails
+            if user is None and user_obj.password == password:
+                user_obj.set_password(password)
+                user_obj.save()
+                user = authenticate(request, username=user_obj.username, password=password)
+
     if user is not None:
-        print("User authenticated:", user)
         login(request, user)
         return Response(UsuarioSerializer(user).data)
-    print("User authentication failed for email:", email, "password:", password)
+
     return Response({'error': 'Credenciales inválidas'}, status=400)
 
 
 @api_view(['POST'])
 @permission_classes([permissions.AllowAny])
 def register_view(request):
-    from django.contrib.auth.hashers import make_password
     data = request.data
+    email = data.get('email', '').strip()
+    password = data.get('password', '')
+    nombre = data.get('nombre', '')
+    dependencia = data.get('dependencia', '')
+    piso = data.get('piso', '')
+
+    if not email or not password:
+        return Response({'error': 'El correo y la contraseña son requeridos'}, status=400)
+
     try:
-        user = Usuario.objects.create(
-            username=data.get('email', ''),
-            email=data.get('email', ''),
-            password=make_password(data.get('password', '')),
-            nombre=data.get('nombre', ''),
-            dependencia=data.get('dependencia', ''),
-            piso=data.get('piso', ''),
+        user = Usuario.objects.create_user(
+            username=email,
+            email=email,
+            password=password,
+            nombre=nombre,
+            dependencia=dependencia,
+            piso=piso,
+            rol='Usuario',
+            debe_cambiar_password=True,
         )
         return Response(UsuarioSerializer(user).data, status=201)
     except Exception as e:
@@ -188,15 +225,16 @@ def change_password_view(request):
 @api_view(['POST'])
 @permission_classes([permissions.AllowAny])
 def reset_password_view(request):
-    email = request.data.get('email', '')
+    email = request.data.get('email', '').strip()
     new_password = request.data.get('new_password', '')
     if not email:
         return Response({'error': 'Se requiere un correo electrónico'}, status=400)
     try:
-        user = Usuario.objects.get(email=email)
+        user = Usuario.objects.get(email__iexact=email)
         if not new_password:
             new_password = 'Temp1234!'
         user.set_password(new_password)
+        user.debe_cambiar_password = True
         user.save()
         return Response({'status': 'ok', 'message': f'Contraseña restablecida para {email}'})
     except Usuario.DoesNotExist:
@@ -205,17 +243,31 @@ def reset_password_view(request):
 @api_view(['POST'])
 @permission_classes([permissions.AllowAny])
 def create_user_admin_view(request):
-    from django.contrib.auth.hashers import make_password
     data = request.data
+    email = data.get('email', '').strip()
+    password = data.get('password', 'Cti1234')
+    nombre = data.get('nombre', '')
+    dependencia = data.get('dependencia', '')
+    piso = data.get('piso', '')
+    rol = data.get('rol', 'Usuario')
+
+    if not email:
+        return Response({'error': 'El correo electrónico es requerido'}, status=400)
+
+    is_admin = rol.lower() in ['administrador', 'admin', 'jefe']
+
     try:
-        user = Usuario.objects.create(
-            username=data.get('email', ''),
-            email=data.get('email', ''),
-            password=make_password(data.get('password', 'Cti1234')),
-            nombre=data.get('nombre', ''),
-            dependencia=data.get('dependencia', ''),
-            piso=data.get('piso', ''),
-            rol=data.get('rol', 'Usuario'),
+        user = Usuario.objects.create_user(
+            username=email,
+            email=email,
+            password=password,
+            nombre=nombre,
+            dependencia=dependencia,
+            piso=piso,
+            rol=rol,
+            is_staff=is_admin,
+            is_superuser=is_admin,
+            debe_cambiar_password=True,
         )
         return Response(UsuarioSerializer(user).data, status=201)
     except Exception as e:
@@ -294,12 +346,19 @@ def tablero_usuarios_get_by_id_view(request, id):
 @api_view(['POST'])
 @permission_classes([permissions.AllowAny])
 def create_board_view(request):
+    creador = request.user if (request.user and request.user.is_authenticated) else Usuario.objects.get(id=request.data.get('creador_id', ''))
     tablero = Tablero.objects.create(
         nombre=request.data.get('nombre', ''),
-        creador=Usuario.objects.get(id=request.data.get('creador_id', '')),
-        tipo=request.data.get('tipo', ''),
-        columnas=request.data.get('columnas', ''),
+        creador=creador,
+        tipo=request.data.get('tipo', 'Trabajo'),
+        columnas=request.data.get('columnas', []),
     )
+    if creador:
+        TableroUsuario.objects.get_or_create(
+            tablero=tablero,
+            usuario=creador,
+            defaults={'rol_en_tablero': 'Administrador'}
+        )
     return Response(TableroSerializer(tablero).data, status=201)
 
 @api_view(['POST'])
@@ -342,8 +401,11 @@ def update_member_role_view(request):
     rol = request.data.get('rol')
     if not all([tablero_id, usuario_id, rol]):
         return Response({'error': 'tablero_id, usuario_id y rol son requeridos'}, status=400)
-    updated = TableroUsuario.objects.filter(tablero_id=tablero_id, usuario_id=usuario_id).update(rol_en_tablero=rol)
-    return Response({'updated': updated})
+    obj, _ = TableroUsuario.objects.update_or_create(
+        tablero_id=tablero_id, usuario_id=usuario_id,
+        defaults={'rol_en_tablero': rol}
+    )
+    return Response({'updated': 1})
 
 @api_view(['POST'])
 @permission_classes([permissions.IsAuthenticated])
@@ -353,8 +415,11 @@ def update_member_permisos_view(request):
     permisos = request.data.get('permisos')
     if not all([tablero_id, usuario_id]):
         return Response({'error': 'tablero_id y usuario_id son requeridos'}, status=400)
-    updated = TableroUsuario.objects.filter(tablero_id=tablero_id, usuario_id=usuario_id).update(permisos=permisos)
-    return Response({'updated': updated})
+    obj, _ = TableroUsuario.objects.update_or_create(
+        tablero_id=tablero_id, usuario_id=usuario_id,
+        defaults={'permisos': permisos}
+    )
+    return Response({'updated': 1})
 
 @api_view(['POST'])
 @permission_classes([permissions.IsAuthenticated])
