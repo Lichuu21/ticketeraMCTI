@@ -138,7 +138,7 @@ class TicketSerializer(serializers.ModelSerializer):
         model = Ticket
         fields = ['id', 'titulo', 'descripcion', 'estado', 'prioridad', 'area', 'responsable',
                   'solicitante', 'seccion_solicitante', 'email_solicitante', 'tablero', 'tablero_id',
-                  'tablero_nombre', 'checklist', 'fecha_creacion']
+                  'tablero_nombre', 'checklist', 'fecha_creacion', 'posicion']
         read_only_fields = ['tablero']
 
     def to_representation(self, instance):

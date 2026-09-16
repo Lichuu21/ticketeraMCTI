@@ -31,11 +31,12 @@ export const AuthProvider = ({ children }) => {
 
     const login = async (email, password) => {
         const { data, error } = await api.auth.signInWithPassword({ email, password });
-        if (error) return { error };
+        if (error) return { data: null, error };
         const userData = data.user;
         const { data: perfil } = await api.usuarios.getById(userData.id);
-        setUser({ ...userData, ...perfil });
-        return { error: null };
+        const fullUser = { ...userData, ...perfil };
+        setUser(fullUser);
+        return { data: fullUser, error: null };
     };
 
     const registro = async (email, password, nombreData) => {

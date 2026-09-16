@@ -140,26 +140,11 @@ export default function Dashboard() {
     if (!user) return;
     setLoading(true);
 
-    const { data: tableroUsuarios, error: errTU } = await api.tableroUsuarios.getByUsuario(user.id);
-
-    if (errTU) {
-      console.error('Error cargando membresías:', errTU);
-      setLoading(false);
-      return;
-    }
-
-    if (!tableroUsuarios || tableroUsuarios.length === 0) {
-      setTableros([]);
-      setLoading(false);
-      return;
-    }
-
-    const tableroIds = tableroUsuarios.map(tu => tu.tablero_id);
-
     const { data: tablerosData, error: errT } = await api.tableros.getByUsuario();
 
     if (errT) {
       console.error('Error cargando tableros:', errT);
+      setTableros([]);
     } else {
       const savedOrder = JSON.parse(localStorage.getItem(`ordenTableros_${user.id}`) || '[]');
       let sortedTableros = [...(tablerosData || [])];
@@ -311,15 +296,9 @@ export default function Dashboard() {
       );
 
       if (errInsert) {
-        alert("Error al crear tablero");
+        alert("Error al crear tablero: " + (errInsert.message || 'Error inesperado'));
         return;
       }
-
-      await api.tableroUsuarios.addMember({
-        tablero_id: newBoard.id,
-        usuario_id: user.id,
-        rol_en_tablero: 'Administrador'
-      });
     }
 
     setModalOpen(false);

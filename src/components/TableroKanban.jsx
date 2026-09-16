@@ -7,7 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import { parseTableroConfig } from '../utils/configTablero';
 import EstadisticasPanel from './EstadisticasPanel';
 
-export const PERMISOS_ADMIN = {
+const PERMISOS_ADMIN = {
   ver_tablero: true,
   crear_tickets: true,
   editar_tickets: true,
@@ -18,7 +18,7 @@ export const PERMISOS_ADMIN = {
   gestionar_usuarios: true
 };
 
-export const PERMISOS_MIEMBRO_DEFAULT = {
+const PERMISOS_MIEMBRO_DEFAULT = {
   ver_tablero: true,
   crear_tickets: true,
   editar_tickets: true,
@@ -230,7 +230,7 @@ const TicketCard = React.memo(({ ticket, index, onClick, isReadOnly, allTickets,
   );
 });
 
-const TicketForm = ({ initialConfig, onSubmit, onCancel, user, usuarios, tipoTablero, setTicketAEliminar, setModalOpen }) => {
+const TicketForm = ({ initialConfig, onSubmit, onCancel, user, usuarios, tipoTablero, setTicketAEliminar, setModalOpen, columnasActivas = [], tableroActual }) => {
   const [localConfig, setLocalConfig] = React.useState(initialConfig);
   const [tipoElegido, setTipoElegido] = React.useState(
     initialConfig.id || tipoTablero === 'Personal' ? (initialConfig.prioridad === 'Nota' ? 'Nota' : 'Ticket') : null
@@ -242,7 +242,7 @@ const TicketForm = ({ initialConfig, onSubmit, onCancel, user, usuarios, tipoTab
 
   const misPermisos = React.useMemo(() => {
     return getPermisosUsuario(currentUserInBoard, initialConfig?.tablero || tableroActual);
-  }, [currentUserInBoard]);
+  }, [currentUserInBoard, initialConfig?.tablero, tableroActual]);
 
   const isInputDisabled = localConfig.id ? !misPermisos.editar_tickets : !misPermisos.crear_tickets;
 
@@ -438,8 +438,8 @@ const TicketForm = ({ initialConfig, onSubmit, onCancel, user, usuarios, tipoTab
                 <input type="email" value={localConfig.email_solicitante || ''} onChange={e => setLocalConfig({ ...localConfig, email_solicitante: e.target.value })} className="w-full bg-white border border-slate-200 dark:border-[var(--border-accent)] dark:bg-[var(--bg-main)] dark:text-white rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-[#065E94]/50 outline-none transition-all shadow-sm dark:shadow-none" placeholder="ejemplo@correo.com" disabled={isInputDisabled} />
               </div>
 
-              {/* Row 3: Prioridad & Área (Clasificación del Ticket) */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Row 3: Prioridad, Área & Columna */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-500 dark:text-neutral-400 uppercase tracking-widest mb-1.5 truncate">Prioridad</label>
                   <select value={localConfig.prioridad} onChange={e => setLocalConfig({ ...localConfig, prioridad: e.target.value })} className="w-full bg-white border border-slate-200 dark:border-[var(--border-accent)] dark:bg-[var(--bg-main)] dark:text-white rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-[#065E94]/50 outline-none shadow-sm dark:shadow-none cursor-pointer" disabled={isInputDisabled}>
@@ -458,6 +458,16 @@ const TicketForm = ({ initialConfig, onSubmit, onCancel, user, usuarios, tipoTab
                     <option value="Desarrollo">Desarrollo</option>
                   </select>
                 </div>
+                {columnasActivas && columnasActivas.length > 0 && (
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 dark:text-neutral-400 uppercase tracking-widest mb-1.5 truncate">Columna / Estado</label>
+                    <select value={localConfig.estado || (columnasActivas[0] || 'Solicitud')} onChange={e => setLocalConfig({ ...localConfig, estado: e.target.value })} className="w-full bg-white border border-slate-200 dark:border-[var(--border-accent)] dark:bg-[var(--bg-main)] dark:text-white rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-[#065E94]/50 outline-none transition-all shadow-sm dark:shadow-none cursor-pointer" disabled={isInputDisabled}>
+                      {columnasActivas.map(col => (
+                        <option key={col} value={col}>{col}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -570,6 +580,8 @@ export default function TableroKanban() {
   const [modalOpen, setModalOpen] = useState(false);
   const [modalUsuariosOpen, setModalUsuariosOpen] = useState(false);
   const [modalPerfilOpen, setModalPerfilOpen] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({ nueva: '', confirmar: '' });
+  const [cambiandoReq, setCambiandoReq] = useState(false);
   const [modalLogoutOpen, setModalLogoutOpen] = useState(false);
   const [mostrarEstadisticas, setMostrarEstadisticas] = useState(false);
   const [detalleOpen, setDetalleOpen] = useState(false);
@@ -774,7 +786,7 @@ export default function TableroKanban() {
     return () => {
       clearInterval(interval);
     };
-  }, []); // Dependencias vacías al usar ticketActivoRef
+  }, [tableroId, user?.id]);
 
 
 
@@ -903,7 +915,9 @@ export default function TableroKanban() {
   // Convertimos la lista de la BD al formato requerido por las columnas
   const columnasData = React.useMemo(() => {
     const data = columnasActivas.reduce((acc, colName) => {
-      acc[colName] = tickets.filter(t => t.estado === colName);
+      acc[colName] = tickets
+        .filter(t => t.estado === colName)
+        .sort((a, b) => (a.posicion ?? 0) - (b.posicion ?? 0) || new Date(a.fecha_creacion) - new Date(b.fecha_creacion));
       return acc;
     }, {});
 
@@ -916,9 +930,8 @@ export default function TableroKanban() {
     return data;
   }, [tickets, columnasActivas]);
 
-  // 2. Drag & Drop - Actualización optimista con reordenamiento
+  // 2. Drag & Drop - Reordenamiento via campo posicion (robusto y persistente)
   const onDragEnd = async (result) => {
-    setDraggingSourceId(null);
     if (!misPermisos.mover_tarjetas) {
       alert('No tienes permisos para mover tarjetas en este tablero.');
       return;
@@ -931,79 +944,84 @@ export default function TableroKanban() {
       return;
     }
 
-    const localTickets = [...tickets];
-    const ticketIndex = localTickets.findIndex(t => t.id.toString() === draggableId.toString());
+    const ticketId = parseInt(draggableId, 10);
+    const estadoOrigen = source.droppableId;
+    const estadoDestino = destination.droppableId;
 
-    if (ticketIndex === -1) return;
+    // 1. Crear copia profunda del estado actual de columnasData (que refleja exactamente lo que ve el usuario)
+    const nuevoMapa = {};
+    columnasActivas.forEach(col => {
+      nuevoMapa[col] = [...(columnasData[col] || [])];
+    });
 
-    const ticketToMove = localTickets[ticketIndex];
-    const estadoPrevio = ticketToMove.estado;
-    const estadoNuevo = destination.droppableId;
-    const oldDate = ticketToMove.fecha_creacion;
-
-    // --- LÓGICA DE REORDENAMIENTO VIA FECHA ---
-    // Calculamos una fecha nueva para insertarlo en la posición visual seleccionada
-    let destColumnTickets = localTickets.filter(t => t.estado === estadoNuevo);
-    destColumnTickets = destColumnTickets.filter(t => t.id.toString() !== draggableId.toString());
-
-    let newDate = new Date();
-    if (destColumnTickets.length === 0) {
-      newDate = new Date(ticketToMove.fecha_creacion);
-    } else if (destination.index === 0) {
-      // Si va primero, le damos 1 segundo más que el que ahora está primero
-      newDate = new Date(new Date(destColumnTickets[0].fecha_creacion).getTime() + 1000);
-    } else if (destination.index >= destColumnTickets.length) {
-      // Si va al final, 1 segundo menos que el que ahora está al final
-      newDate = new Date(new Date(destColumnTickets[destColumnTickets.length - 1].fecha_creacion).getTime() - 1000);
-    } else {
-      // A la mitad
-      const prevDate = new Date(destColumnTickets[destination.index - 1].fecha_creacion).getTime();
-      const nextDate = new Date(destColumnTickets[destination.index].fecha_creacion).getTime();
-      newDate = new Date((prevDate + nextDate) / 2);
+    // 2. Extraer el ticket de la columna origen
+    const origenList = nuevoMapa[estadoOrigen] || [];
+    let ticketMovido = origenList.find(t => t.id === ticketId);
+    if (!ticketMovido && origenList[source.index]) {
+      ticketMovido = origenList[source.index];
     }
-    const isoNewDate = newDate.toISOString();
+    if (!ticketMovido) {
+      ticketMovido = tickets.find(t => t.id === ticketId);
+    }
+    if (!ticketMovido) return;
 
-    // ----- FASE 3: Lógica de Resolución Formal -----
+    nuevoMapa[estadoOrigen] = origenList.filter(t => t.id !== ticketId);
+
+    // 3. Insertar en la columna destino con el nuevo estado
+    if (!nuevoMapa[estadoDestino]) nuevoMapa[estadoDestino] = [];
+    const ticketActualizado = { ...ticketMovido, estado: estadoDestino };
+    nuevoMapa[estadoDestino].splice(destination.index, 0, ticketActualizado);
+
+    // 4. Lógica de Resolución Formal (si aplica)
     const reqComentarios = parseTableroConfig(tableroActual?.descripcion).config.req_com || [];
-    if (reqComentarios.includes(estadoNuevo) && estadoPrevio !== estadoNuevo) {
-      setTicketAResolver({ ...ticketToMove, previousState: estadoPrevio, targetState: estadoNuevo, prevDate: oldDate, nuevaFecha: isoNewDate });
+    if (reqComentarios.includes(estadoDestino) && estadoOrigen !== estadoDestino) {
+      const colOrder = {};
+      columnasActivas.forEach(col => {
+        colOrder[col] = (nuevoMapa[col] || []).map(t => t.id);
+      });
+      setTicketAResolver({
+        ...ticketMovido,
+        previousState: estadoOrigen,
+        targetState: estadoDestino,
+        colOrder
+      });
       setResolucionTexto('');
       setModalResolucionOpen(true);
       return;
     }
-    // -----------------------------------------------
 
-    // Update state locally
-    ticketToMove.estado = estadoNuevo;
-    ticketToMove.fecha_creacion = isoNewDate;
-    localTickets.sort((a, b) => new Date(b.fecha_creacion) - new Date(a.fecha_creacion));
-    setTickets([...localTickets]);
+    // 5. Construir nueva lista plana de tickets con sus posiciones y estados actualizados
+    const nuevosTickets = [];
+    const colPayload = {};
+    columnasActivas.forEach(col => {
+      const lista = nuevoMapa[col] || [];
+      colPayload[col] = lista.map(t => t.id);
+      lista.forEach((t, idx) => {
+        nuevosTickets.push({ ...t, estado: col, posicion: idx });
+      });
+    });
 
-    // Actualizamos asíncronamente en Supabase
+    // 6. Optimistic update inmediato
+    setTickets(nuevosTickets);
+
+    // 7. Persistir en base de datos via endpoint atomico reorder
     try {
-      const { error } = await api.tickets.update(ticketToMove.id, {
-          estado: estadoNuevo,
-          fecha_creacion: isoNewDate
-        });
-
+      const { error } = await api.tickets.reorder(colPayload);
       if (error) throw error;
 
-      // Generar comentario de auditoría (Trazabilidad) si cambió de estado
-        if (estadoNuevo !== estadoPrevio && user) {
+      // Comentario de auditoría si cambió de columna
+      if (estadoDestino !== estadoOrigen && user) {
         api.comentarios.create({
-          ticket_id: ticketToMove.id,
+          ticket_id: ticketId,
           usuario_id: user.id,
-          texto: `[AUDITORÍA]: Ticket movido de "${estadoPrevio}" a "${estadoNuevo}".`
+          texto: `[AUDITORÍA]: Ticket movido de "${estadoOrigen}" a "${estadoDestino}".`
         }).then(({ error: auditError }) => {
           if (auditError) console.error("Error al registrar auditoría:", auditError);
         });
       }
-    } catch (error) {
-      console.error('Error moviendo ticket, haciendo rollback:', error);
-      ticketToMove.estado = estadoPrevio;
-      ticketToMove.fecha_creacion = oldDate;
-      localTickets.sort((a, b) => new Date(b.fecha_creacion) - new Date(a.fecha_creacion));
-      setTickets([...localTickets]);
+    } catch (err) {
+      console.error('Error guardando reorden, haciendo rollback:', err);
+      setTickets([...tickets]); // rollback al estado previo
     }
   };
 
@@ -1029,29 +1047,38 @@ export default function TableroKanban() {
       setTicketActivo(prev => ({ ...prev, estado: ticketAResolver.targetState || 'Resuelto' }));
     }
 
-    const localTickets = [...tickets];
-    const ticketIndex = localTickets.findIndex(t => t.id === ticketAResolver.id);
-    if (ticketIndex !== -1) {
-      localTickets[ticketIndex].estado = ticketAResolver.targetState || 'Resuelto';
-      localTickets[ticketIndex].fecha_creacion = ticketAResolver.nuevaFecha;
-      localTickets.sort((a, b) => new Date(b.fecha_creacion) - new Date(a.fecha_creacion));
-      setTickets([...localTickets]);
-    }
-
-    try {
-      const { error } = await api.tickets.update(ticketAResolver.id, {
-          estado: ticketAResolver.targetState || 'Resuelto',
-          fecha_creacion: ticketAResolver.nuevaFecha
+    // Aplicar el reorden calculado por onDragEnd al estado local
+    const colOrder = ticketAResolver.colOrder;
+    if (colOrder) {
+      const nuevosTickets = [];
+      columnasActivas.forEach(col => {
+        (colOrder[col] || []).forEach((id, idx) => {
+          const t = tickets.find(x => x.id === id) || (ticketAResolver.id === id ? ticketAResolver : null);
+          if (t) nuevosTickets.push({ ...t, estado: col, posicion: idx });
         });
+      });
+      setTickets(nuevosTickets);
 
-      if (error) throw error;
-    } catch (error) {
-      console.error('Error confirmando resolución, rollback:', error);
+      try {
+        const { error } = await api.tickets.reorder(colOrder);
+        if (error) throw error;
+      } catch (err) {
+        console.error('Error confirmando resolución, rollback:', err);
+        setTickets([...tickets]);
+      }
+    } else {
+      // Fallback: simple update del estado si no hay colOrder
+      const localTickets = [...tickets];
+      const ticketIndex = localTickets.findIndex(t => t.id === ticketAResolver.id);
       if (ticketIndex !== -1) {
-        localTickets[ticketIndex].estado = ticketAResolver.previousState;
-        localTickets[ticketIndex].fecha_creacion = ticketAResolver.prevDate;
-        localTickets.sort((a, b) => new Date(b.fecha_creacion) - new Date(a.fecha_creacion));
+        localTickets[ticketIndex] = { ...localTickets[ticketIndex], estado: ticketAResolver.targetState || 'Resuelto' };
         setTickets([...localTickets]);
+      }
+      try {
+        const { error } = await api.tickets.update(ticketAResolver.id, { estado: ticketAResolver.targetState || 'Resuelto' });
+        if (error) throw error;
+      } catch (err) {
+        console.error('Error en fallback de resolución:', err);
       }
     }
 
@@ -1061,7 +1088,6 @@ export default function TableroKanban() {
   };
 
   const cancelarResolucion = () => {
-    // Si cancela, no hacemos nada, porque el ticket nunca se movió (detuvimos onDragEnd)
     setModalResolucionOpen(false);
     setTicketAResolver(null);
     setResolucionTexto('');
@@ -1072,39 +1098,48 @@ export default function TableroKanban() {
     const estadoNuevo = columnasActivas[columnasActivas.length - 1] || 'Resuelto';
     if (ticketToResolve.estado === estadoNuevo) return;
     const estadoPrevio = ticketToResolve.estado;
-    const isoNewDate = new Date().toISOString();
 
-    const localTickets = [...tickets];
-    const ticketIdx = localTickets.findIndex(t => t.id === ticketToResolve.id);
-    if (ticketIdx === -1) return;
+    const nuevoMapa = {};
+    columnasActivas.forEach(col => {
+      nuevoMapa[col] = [...(columnasData[col] || [])];
+    });
 
-    localTickets[ticketIdx] = { ...localTickets[ticketIdx], estado: estadoNuevo, fecha_creacion: isoNewDate };
-    localTickets.sort((a, b) => new Date(b.fecha_creacion) - new Date(a.fecha_creacion));
-    setTickets(localTickets);
+    nuevoMapa[estadoPrevio] = (nuevoMapa[estadoPrevio] || []).filter(t => t.id !== ticketToResolve.id);
+    if (!nuevoMapa[estadoNuevo]) nuevoMapa[estadoNuevo] = [];
+    nuevoMapa[estadoNuevo].push({ ...ticketToResolve, estado: estadoNuevo });
+
+    const nuevosTickets = [];
+    const colPayload = {};
+    columnasActivas.forEach(col => {
+      const lista = nuevoMapa[col] || [];
+      colPayload[col] = lista.map(t => t.id);
+      lista.forEach((t, idx) => {
+        nuevosTickets.push({ ...t, estado: col, posicion: idx });
+      });
+    });
+
+    setTickets(nuevosTickets);
 
     try {
-      const { error } = await api.tickets.update(ticketToResolve.id, { estado: estadoNuevo, fecha_creacion: isoNewDate });
+      const { error } = await api.tickets.reorder(colPayload);
       if (error) throw error;
 
       const { error: errCom } = await api.comentarios.create({
         ticket_id: ticketToResolve.id,
         usuario_id: user.id,
-        texto: `RESOLUCIÓN OFICIAL: Resuelto`
+        texto: `[RESOLUCIÓN OFICIAL]: Resuelto`
       });
       if (errCom) console.error("Error guardando resolución rápida en DB:", errCom);
 
       const { error: auditError } = await api.comentarios.create({
         ticket_id: ticketToResolve.id,
         usuario_id: user.id,
-        texto: `[AUDITORÍA]: El ticket fue movido de "${estadoPrevio}" a "${estadoNuevo}" `
+        texto: `[AUDITORÍA]: El ticket fue movido de "${estadoPrevio}" a "${estadoNuevo}".`
       });
       if (auditError) console.error("Error al registrar auditoría:", auditError);
     } catch (error) {
       console.error('Error en resolución rápida, haciendo rollback:', error);
-      const reverted = [...tickets];
-      const revIdx = reverted.findIndex(t => t.id === ticketToResolve.id);
-      reverted[revIdx] = { ...reverted[revIdx], estado: estadoPrevio };
-      setTickets(reverted);
+      setTickets([...tickets]);
     }
   };
 
@@ -1117,7 +1152,7 @@ export default function TableroKanban() {
         configToUse = eOrConfig;
       }
 
-      const { id, titulo, descripcion, area, prioridad, responsables, solicitante, seccion_solicitante, email_solicitante } = configToUse || {};
+      const { id, titulo, descripcion, area, prioridad, responsables, solicitante, seccion_solicitante, email_solicitante, estado } = configToUse || {};
 
       if (!titulo || !titulo.trim()) {
         alert("Por favor ingresa un título para el ticket.");
@@ -1141,6 +1176,9 @@ export default function TableroKanban() {
           solicitante: (solicitante || '').trim(),
           seccion_solicitante: (seccion_solicitante || '').trim()
         };
+        if (estado && (columnasActivas || []).includes(estado)) {
+          updatePayload.estado = estado;
+        }
         if (email_solicitante && email_solicitante.trim()) {
           updatePayload.email_solicitante = email_solicitante.trim();
         }
@@ -1166,6 +1204,7 @@ export default function TableroKanban() {
           if (ticketViejo.prioridad !== prioridad) cambios.push(`Prioridad: ${ticketViejo.prioridad || 'Ninguna'} ➔ ${prioridad}`);
           if (ticketViejo.area !== area) cambios.push(`Área: ${ticketViejo.area || 'Ninguna'} ➔ ${area}`);
           if (ticketViejo.responsable !== responsable) cambios.push(`Responsable: ${ticketViejo.responsable || 'Sin asignar'} ➔ ${responsable || 'Sin asignar'}`);
+          if (estado && ticketViejo.estado !== estado) cambios.push(`Columna: ${ticketViejo.estado} ➔ ${estado}`);
 
           if (cambios.length > 0) {
             api.comentarios.create({
@@ -1178,12 +1217,14 @@ export default function TableroKanban() {
           }
         }
       } else {
-        // Crear nuevo ticket: respetar columna inicial configurada en el tablero si existe
+        // Crear nuevo ticket: respetar estado solicitado o columna inicial configurada
         const parsedBoardConfig = parseTableroConfig(tableroActual?.descripcion);
         const colInicialConfigurada = parsedBoardConfig.config?.col_inicial;
 
         let estadoInicial;
-        if (prioridad === 'Nota') {
+        if (estado && (columnasActivas || []).includes(estado)) {
+          estadoInicial = estado;
+        } else if (prioridad === 'Nota') {
           const colNota = (columnasActivas || []).find(c => c.toLowerCase().includes('informaci') || c.toLowerCase().includes('nota'));
           estadoInicial = colNota || ((columnasActivas && columnasActivas.length > 0) ? columnasActivas[0] : 'Información util');
         } else {
@@ -1225,15 +1266,7 @@ export default function TableroKanban() {
           error = res.error;
         }
 
-        // Fallback 2: Si la base de datos rebotó por restricción ENUM en Postgres ('ticket_estado'), reintentamos con 'Pendiente'
-        if (error && (error.code === '22P02' || error.message?.toLowerCase().includes('enum') || error.message?.includes('ticket_estado'))) {
-          console.warn("Reintentando creación con estado 'Pendiente'...", error);
-          const payloadSinEmail = { ...payload, estado: 'Pendiente' };
-          delete payloadSinEmail.email_solicitante;
-          res = await api.tickets.create(payloadSinEmail);
-          data = res.data;
-          error = res.error;
-        }
+
 
         if (!error && data && user) {
           const nuevoTicketId = data.id;
@@ -1321,6 +1354,26 @@ export default function TableroKanban() {
     } catch (err) {
       console.error("Excepción inesperada en handleCrearTicket:", err);
       alert(`Ocurrió un error inesperado al procesar el ticket:\n${err?.message || err}`);
+    }
+  };
+
+  const handleCambiarPassword = async (e) => {
+    e.preventDefault();
+    if (passwordForm.nueva !== passwordForm.confirmar) {
+      alert("Las contraseñas nuevas no coinciden.");
+      return;
+    }
+    setCambiandoReq(true);
+    const { error } = await api.auth.updateUser({
+      password: passwordForm.nueva
+    });
+    setCambiandoReq(false);
+    if (error) {
+      alert(`Error al cambiar contraseña: ${error.message}`);
+    } else {
+      alert("Contraseña cambiada exitosamente.");
+      setPasswordForm({ nueva: '', confirmar: '' });
+      setModalPerfilOpen(false);
     }
   };
 
@@ -1831,7 +1884,7 @@ export default function TableroKanban() {
             {misPermisos.crear_tickets && (
               <button
                 onClick={() => {
-                  setFormConfig({ id: null, titulo: '', descripcion: '', area: '', prioridad: 'Media', responsables: [], solicitante: '', seccion_solicitante: '' });
+                  setFormConfig({ id: null, titulo: '', descripcion: '', area: '', prioridad: 'Media', responsables: [], solicitante: '', seccion_solicitante: '', estado: columnasActivas[0] || 'Solicitud' });
                   setModalOpen(true);
                 }}
                 className="px-5 py-2.5 rounded-xl text-sm font-semibold text-[#065E94] dark:text-white bg-white/80 dark:bg-[var(--bg-secondary)] hover:bg-blue-50 dark:hover:bg-[var(--bg-hover)] shadow-[0_4px_15px_-3px_rgba(6,94,148,0.15)] dark:shadow-none hover:-translate-y-1 dark:hover:-translate-y-0 transition-all duration-300 border border-blue-100 dark:border-[var(--border-accent)] backdrop-blur-md dark:backdrop-blur-none flex items-center gap-2"
@@ -2039,9 +2092,35 @@ export default function TableroKanban() {
                   >
                     <div className="flex justify-between items-center mb-3 pt-2 px-3">
                       <h2 className="font-extrabold text-slate-700/80 dark:text-neutral-200 text-[15px] uppercase tracking-wide">{columnId}</h2>
-                      <span className="text-xs bg-slate-300/50 dark:bg-[var(--bg-secondary)] text-slate-600 dark:text-neutral-300 px-2 py-1 rounded-md font-bold shadow-sm">
-                        {columnasData[columnId].length}
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs bg-slate-300/50 dark:bg-[var(--bg-secondary)] text-slate-600 dark:text-neutral-300 px-2 py-1 rounded-md font-bold shadow-sm">
+                          {columnasData[columnId].length}
+                        </span>
+                        {misPermisos.crear_tickets && (
+                          <button
+                            onClick={() => {
+                              setFormConfig({
+                                id: null,
+                                titulo: '',
+                                descripcion: '',
+                                area: '',
+                                prioridad: 'Media',
+                                responsables: [],
+                                solicitante: '',
+                                seccion_solicitante: '',
+                                estado: columnId
+                              });
+                              setModalOpen(true);
+                            }}
+                            className="p-1 text-slate-500 hover:text-[#065E94] dark:hover:text-blue-400 hover:bg-slate-300/60 dark:hover:bg-white/10 rounded-md transition-colors"
+                            title={`Agregar ticket a "${columnId}"`}
+                          >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+                            </svg>
+                          </button>
+                        )}
+                      </div>
                     </div>
 
                     <Droppable droppableId={columnId}>
@@ -2331,6 +2410,8 @@ export default function TableroKanban() {
               tipoTablero={tableroActual?.tipo}
               setTicketAEliminar={setTicketAEliminar}
               setModalOpen={setModalOpen}
+              columnasActivas={columnasActivas}
+              tableroActual={tableroActual}
             />
           </div>
         </div>
@@ -2558,6 +2639,7 @@ export default function TableroKanban() {
                           solicitante: ticketActivo.solicitante || '',
                           seccion_solicitante: ticketActivo.seccion_solicitante || '',
                           email_solicitante: ticketActivo.email_solicitante || '',
+                          estado: ticketActivo.estado,
                           responsables: ticketActivo.responsable ? ticketActivo.responsable.split(',').map(r => r.trim()).filter(Boolean) : []
                         });
                         setDetalleOpen(false); // Cierra la pestaña de detalles
@@ -3300,7 +3382,7 @@ export default function TableroKanban() {
               <h3 className="text-xs font-bold text-slate-400 dark:text-neutral-500 uppercase tracking-wider mb-4">Acciones</h3>
               <div className="flex flex-col gap-2 mb-8">
                 {misPermisos.crear_tickets && (
-                  <button onClick={() => { setFormConfig({ id: null, titulo: '', descripcion: '', area: '', prioridad: 'Media', responsables: [], solicitante: '', seccion_solicitante: '' }); setModalOpen(true); setMenuResponsiveAbierto(false); }} className="text-left px-4 py-3 rounded-xl font-bold bg-[#065E94] text-white flex items-center gap-2">
+                  <button onClick={() => { setFormConfig({ id: null, titulo: '', descripcion: '', area: '', prioridad: 'Media', responsables: [], solicitante: '', seccion_solicitante: '', estado: columnasActivas[0] || 'Solicitud' }); setModalOpen(true); setMenuResponsiveAbierto(false); }} className="text-left px-4 py-3 rounded-xl font-bold bg-[#065E94] text-white flex items-center gap-2">
                     <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
                     Nuevo Ticket
                   </button>

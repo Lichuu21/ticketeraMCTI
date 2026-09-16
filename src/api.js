@@ -263,7 +263,7 @@ export const tableroUsuarios = {
 
 // ─── TICKETS ─────────────────────────────────────────────
 export const tickets = {
-  async getByTablero(tableroId, ordering = '-fecha_creacion') {
+  async getByTablero(tableroId, ordering = 'posicion,fecha_creacion') {
     try {
       const data = await apiRequest('GET', `/tickets/?tablero_id=${tableroId}&ordering=${ordering}`);
       return { data, error: null };
@@ -303,6 +303,15 @@ export const tickets = {
     try {
       await apiRequest('DELETE', `/tickets/${id}/`);
       return { data: { id }, error: null };
+    } catch (e) {
+      return formatError(e);
+    }
+  },
+
+  async reorder(columnas) {
+    try {
+      const data = await apiRequest('POST', '/tickets/reorder/', { columnas });
+      return { data, error: null };
     } catch (e) {
       return formatError(e);
     }
