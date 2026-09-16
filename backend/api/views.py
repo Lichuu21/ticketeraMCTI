@@ -1,5 +1,5 @@
 from rest_framework import viewsets, permissions, status
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, action
 from rest_framework.response import Response
 from core.models import Usuario, Tablero, TableroUsuario, Ticket, Comentario, Notificacion
 from .serializers import (
@@ -34,9 +34,6 @@ class TableroViewSet(viewsets.ModelViewSet):
         if not user.is_authenticated:
             return Tablero.objects.none()
 
-        if self.request.query_params.get('all') == 'true' and user.is_staff:
-            return Tablero.objects.all()
-
         from django.db.models import Q
         tablero_ids = TableroUsuario.objects.filter(usuario=user).values_list('tablero_id', flat=True)
         return Tablero.objects.filter(Q(creador=user) | Q(id__in=tablero_ids)).distinct()
@@ -61,7 +58,7 @@ class TicketViewSet(viewsets.ModelViewSet):
     serializer_class = TicketSerializer
     permission_classes = [permissions.IsAuthenticated]
     filterset_fields = ['tablero', 'tablero_id', 'estado', 'prioridad']
-    ordering_fields = ['fecha_creacion', 'id', 'prioridad']
+    ordering_fields = ['posicion', 'fecha_creacion', 'id', 'prioridad']
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -69,6 +66,34 @@ class TicketViewSet(viewsets.ModelViewSet):
         if tablero_id:
             qs = qs.filter(tablero_id=tablero_id)
         return qs
+
+    @action(detail=False, methods=['post'], url_path='reorder')
+    def reorder(self, request):
+        """
+        Recibe: { "columnas": { "NombreColumna": [id1, id2, id3], ... } }
+        Actualiza estado y posicion de cada ticket de forma atomica.
+        """
+        from django.db import transaction
+        columnas = request.data.get('columnas', {})
+        if not columnas or not isinstance(columnas, dict):
+            return Response({'error': 'Payload invalido'}, status=400)
+
+        updates = []
+        for estado, ticket_ids in columnas.items():
+            for idx, ticket_id in enumerate(ticket_ids):
+                updates.append((ticket_id, estado, idx))
+
+        if not updates:
+            return Response({'status': 'no-op'})
+
+        try:
+            with transaction.atomic():
+                for ticket_id, estado, posicion in updates:
+                    Ticket.objects.filter(pk=ticket_id).update(estado=estado, posicion=posicion)
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)
+
+        return Response({'status': 'ok', 'updated': len(updates)})
 
 class ComentarioViewSet(viewsets.ModelViewSet):
     queryset = Comentario.objects.all()
@@ -183,6 +208,7 @@ def me_view(request):
 @api_view(['POST'])
 @permission_classes([permissions.IsAuthenticated])
 def change_password_view(request):
+    from django.contrib.auth import update_session_auth_hash
     user = request.user
     new_password = request.data.get('new_password', '')
     if not new_password or len(new_password) < 6:
@@ -193,6 +219,7 @@ def change_password_view(request):
     if hasattr(user, 'cambio_password_status'):
         user.cambio_password_status.debe_cambiar = False
         user.cambio_password_status.save()
+    update_session_auth_hash(request, user)
     return Response({'status': 'ok'})
 
 @api_view(['POST'])

@@ -1,5 +1,6 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
+from django.utils import timezone
 
 
 class Usuario(AbstractUser):
@@ -102,11 +103,12 @@ class Ticket(models.Model):
     email_solicitante = models.CharField(max_length=200, blank=True, default='')
     tablero = models.ForeignKey(Tablero, on_delete=models.CASCADE, related_name='tickets')
     checklist = models.JSONField(default=list)
-    fecha_creacion = models.DateTimeField(auto_now_add=True)
+    fecha_creacion = models.DateTimeField(default=timezone.now)
+    posicion = models.IntegerField(default=0)
 
     class Meta:
         db_table = 'tickets'
-        ordering = ['-fecha_creacion']
+        ordering = ['posicion', '-fecha_creacion']
 
 
 class Comentario(models.Model):

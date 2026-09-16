@@ -11,6 +11,9 @@ export default defineConfig({
   publicDir: 'src/public',
   server: {
     host: true,
+    watch: {
+      usePolling: true,
+    },
     proxy: {
       '/api': {
         target: 'http://ticket-api:8000',
