@@ -1,6 +1,7 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.conf import settings
+from django.utils import timezone
 import os
 
 
@@ -111,9 +112,14 @@ class Tablero(models.Model):
 
 
 class TableroUsuario(models.Model):
+    ROL_CHOICES = [
+        ('Administrador', 'Administrador'),
+        ('Miembro', 'Miembro'),
+    ]
+
     tablero = models.ForeignKey(Tablero, on_delete=models.CASCADE)
     usuario = models.ForeignKey(Usuario, on_delete=models.CASCADE)
-    rol_en_tablero = models.CharField(max_length=100, default='Usuario')
+    rol_en_tablero = models.CharField(max_length=20, choices=ROL_CHOICES, default='Miembro')
     permisos = models.JSONField(null=True, blank=True)
 
     class Meta:

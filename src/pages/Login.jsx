@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import api from '../api';
@@ -14,18 +14,8 @@ export default function Login() {
     const [newPassword, setNewPassword] = useState('');
     const [confirmNewPassword, setConfirmNewPassword] = useState('');
 
-    const { login, user, resetPasswordForEmail } = useAuth();
+    const { login, user, resetPasswordForEmail, loading: authLoading } = useAuth();
     const navigate = useNavigate();
-
-    // Redirect authenticated users to dashboard
-    useEffect(() => {
-        if (user && !requiresPasswordChange && !loading) {
-            const timeoutId = setTimeout(() => {
-                if (!requiresPasswordChange) navigate('/');
-            }, 100);
-            return () => clearTimeout(timeoutId);
-        }
-    }, [user, navigate, requiresPasswordChange, loading]);
 
     const handleForgotPassword = async (e) => {
         e.preventDefault();

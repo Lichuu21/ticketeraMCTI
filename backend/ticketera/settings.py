@@ -10,6 +10,7 @@ DEBUG = os.environ.get('DJANGO_DEBUG', 'True') == 'True'
 ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS', '*').split(',')
 
 INSTALLED_APPS = [
+    'jazzmin',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -104,4 +105,63 @@ REST_FRAMEWORK = {
         'django_filters.rest_framework.DjangoFilterBackend',
         'rest_framework.filters.OrderingFilter',
     ],
+}
+
+JAZZMIN_SETTINGS = {
+    'site_title': 'Ticketera MCTI',
+    'site_header': 'Ticketera MCTI',
+    'site_brand': 'Ticketera MCTI',
+    'welcome_sign': 'Bienvenido a Ticketera MCTI',
+    'copyright': 'Ticketera MCTI',
+    'search_model': ['core.Usuario', 'core.Tablero', 'core.Ticket'],
+    'show_ui_builder': False,
+    'icons': {
+        'auth': 'fas fa-users-cog',
+        'auth.Group': 'fas fa-users',
+        'core.Usuario': 'fas fa-user',
+        'core.Tablero': 'fas fa-columns',
+        'core.Ticket': 'fas fa-ticket-alt',
+        'core.Comentario': 'fas fa-comments',
+        'core.Notificacion': 'fas fa-bell',
+        'core.SiteSetting': 'fas fa-cog',
+        'core.WallpaperGroup': 'fas fa-images',
+        'core.Wallpaper': 'fas fa-image',
+    },
+    'default_icon_parents': 'fas fa-folder',
+    'default_icon_children': 'fas fa-circle',
+    'related_modal_active': True,
+    'use_google_fonts': True,
+    'navigation_expanded': True,
+    'order_with_respect_to': ['auth', 'core'],
+}
+
+JAZZMIN_UI_TWEAKS = {
+    'navbar_small_text': False,
+    'footer_small_text': False,
+    'body_small_text': False,
+    'brand_small_text': False,
+    'brand_colour': False,
+    'accent': 'accent-primary',
+    'navbar': 'navbar-dark',
+    'no_navbar_border': False,
+    'navbar_fixed': True,
+    'layout_boxed': False,
+    'footer_fixed': False,
+    'sidebar_fixed': True,
+    'sidebar': 'sidebar-dark-primary',
+    'sidebar_nav_small_text': False,
+    'sidebar_disable_expand': False,
+    'sidebar_nav_child_indent': True,
+    'sidebar_nav_compact_style': False,
+    'sidebar_nav_legacy_style': False,
+    'sidebar_nav_flat_style': False,
+    'theme': 'default',
+    'button_classes': {
+        'primary': 'btn-primary',
+        'secondary': 'btn-secondary',
+        'info': 'btn-info',
+        'warning': 'btn-warning',
+        'danger': 'btn-danger',
+        'success': 'btn-success',
+    },
 }

@@ -7,6 +7,12 @@ import { useAuth } from '../context/AuthContext';
 import { parseTableroConfig } from '../utils/configTablero';
 import EstadisticasPanel from './EstadisticasPanel';
 
+const PERMISOS_KEYS = [
+  'ver_tablero', 'crear_tickets', 'editar_tickets', 'mover_tarjetas',
+  'eliminar_tickets', 'gestionar_comentarios', 'ver_estadisticas',
+  'gestionar_usuarios'
+];
+
 const PERMISOS_ADMIN = {
   ver_tablero: true,
   crear_tickets: true,
@@ -31,7 +37,7 @@ const PERMISOS_MIEMBRO_DEFAULT = {
 
 const DEPARTAMENTOS = ['Soporte Técnico', 'Telefonía'];
 
-const getPermisosUsuario = (u, tablero) => {
+const getPermisosByUser = (u, tablero) => {
   if (!u) return PERMISOS_MIEMBRO_DEFAULT;
 
   const isGlobalAdmin = !!(u?.is_superuser || u?.is_staff);
@@ -46,7 +52,7 @@ const getPermisosUsuario = (u, tablero) => {
     return PERMISOS_ADMIN;
   }
 
-  let customPerms = (u?.permisos && Object.keys(u.permisos).length > 0) ? u.permisos : u?.permisos_tablero;
+  let customPerms = u?.permisos_tablero;
   if (typeof customPerms === 'string') {
     try {
       customPerms = JSON.parse(customPerms);
@@ -241,7 +247,7 @@ const TicketForm = ({ initialConfig, onSubmit, onCancel, user, usuarios, tipoTab
   }, [usuarios, user]);
 
   const misPermisos = React.useMemo(() => {
-    return getPermisosUsuario(currentUserInBoard, initialConfig?.tablero || tableroActual);
+    return getPermisosByUser(currentUserInBoard, initialConfig?.tablero || tableroActual);
   }, [currentUserInBoard, initialConfig?.tablero, tableroActual]);
 
   const isInputDisabled = localConfig.id ? !misPermisos.editar_tickets : !misPermisos.crear_tickets;
@@ -591,7 +597,7 @@ export default function TableroKanban() {
   const [rolesEditados, setRolesEditados] = useState({});
 
   const currentUserInBoard = usuarios.find(u => String(u.id) === String(user?.id)) || user;
-  const misPermisos = getPermisosUsuario(currentUserInBoard, tableroActual);
+  const misPermisos = getPermisosByUser(currentUserInBoard, tableroActual);
   const [ticketAEliminar, setTicketAEliminar] = useState(null);
   const [expandedUserPerms, setExpandedUserPerms] = useState(null);
 
@@ -882,7 +888,7 @@ export default function TableroKanban() {
         return {
           ...u,
           rol_en_tablero: mem ? mem.rol_en_tablero : null,
-          permisos_tablero: mem && mem.permisos ? mem.permisos : null
+          permisos_tablero: mem && mem.permisos_tablero ? mem.permisos_tablero : null
         };
       });
       setUsuarios(usuariosConMembresia);
@@ -2556,15 +2562,15 @@ export default function TableroKanban() {
                               { key: 'ver_estadisticas', label: 'Estadísticas' },
                               { key: 'gestionar_usuarios', label: 'Gestión Usuarios' }
                             ].map(perm => {
-                              const uPerms = getPermisosUsuario(u, tableroActual);
-                              const hasPerm = !!uPerms[perm.key];
+                              const rawPerms = u?.permisos_tablero || {};
+                              const hasPerm = !!rawPerms[perm.key];
                               return (
                                 <label key={perm.key} className="flex items-center gap-3 cursor-pointer select-none group/sw py-1 px-1.5 rounded-lg hover:bg-slate-100/50 dark:hover:bg-white/5 transition-all">
                                   <button
                                     type="button"
                                     role="switch"
                                     aria-checked={hasPerm}
-                                    onClick={() => handleGuardarPermisos(u.id, { ...uPerms, [perm.key]: !hasPerm })}
+                                    onClick={() => handleGuardarPermisos(u.id, { ...rawPerms, [perm.key]: !hasPerm })}
                                     className={`${hasPerm ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-700'
                                       } relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none shadow-inner`}
                                   >

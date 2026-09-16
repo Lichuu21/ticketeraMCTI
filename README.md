@@ -85,6 +85,56 @@ Ver [DER.md](DER.md) para el diagrama entidad-relación completo.
 | `comentarios` | Comentarios y trazabilidad de auditoría |
 | `notificaciones` | Alertas para miembros del tablero |
 
+## Sistema de Permisos
+
+### Permisos de Tablero (TableroUsuario.permisos)
+
+Los permisos de tablero controlan las acciones de los usuarios **dentro de un tablero específico**. Se almacenan como `JSONField` en la tabla `tablero_usuarios`.
+
+**8 permisos disponibles:**
+
+| Permiso | Descripción | Default |
+|---|---|---|
+| `ver_tablero` | Puede ver el tablero | `true` |
+| `crear_tickets` | Puede crear tickets | `true` |
+| `editar_tickets` | Puede editar tickets | `true` |
+| `mover_tarjetas` | Puede mover tarjetas entre columnas | `true` |
+| `eliminar_tickets` | Puede eliminar tickets | `false` |
+| `gestionar_comentarios` | Puede agregar/eliminar comentarios | `true` |
+| `ver_estadisticas` | Puede ver el panel de estadísticas | `false` |
+| `gestionar_usuarios` | Puede agregar/eliminar miembros y cambiar permisos | `false` |
+
+### Jerarquía de permisos
+
+La función `get_permisos_usuario(user, tablero_id)` en `core/permissions.py` determina los permisos siguiendo esta jerarquía:
+
+1. **Superuser/Staff** → Todos los permisos en `true`
+2. **Creador del tablero** → Todos los permisos en `true`
+3. **Rol "Administrador" en el tablero** → Todos los permisos en `true`
+4. **Miembro con permisos custom** → Permisos del JSON `TableroUsuario.permisos`
+5. **No miembro** → Permisos default del miembro
+
+### Roles en el tablero
+
+| Rol | Descripción |
+|---|---|
+| `Administrador` | Acceso total al tablero (sobre-escribe permisos granulares) |
+| `Miembro` | Permisos según el JSON `permisos` o defaults |
+
+### Validación en el backend
+
+Las ViewSets validan permisos antes de ejecutar acciones:
+
+- `TicketViewSet`: `crear_tickets`, `editar_tickets`, `eliminar_tickets`
+- `ComentarioViewSet`: `gestionar_comentarios`
+- `TableroUsuarioViewSet`: `gestionar_usuarios`
+
+Si un usuario no tiene el permiso requerido, el backend retorna `403 Forbidden`.
+
+### Frontend
+
+La función `getPermisosByUser(u, tablero)` en `TableroKanban.jsx` replica la misma lógica del backend para controlar la UI (mostrar/ocultar botones, deshabilitar campos).
+
 ## Requisitos previos
 
 - [Docker](https://docs.docker.com/get-docker/) (20.10+)
@@ -201,10 +251,18 @@ El backend expone los siguientes endpoints bajo `/api/`:
 |---|---|---|
 | GET/POST | `/api/usuarios/` | Listar/crear usuarios |
 | GET/POST | `/api/tableros/` | Listar/crear tableros |
-| GET/POST | `/api/tickets/` | Listar/crear tickets |
-| GET/POST | `/api/comentarios/` | Listar/crear comentarios |
+| GET/POST | `/api/tickets/` | Listar/crear tickets (requiere `crear_tickets`) |
+| GET/POST | `/api/comentarios/` | Listar/crear comentarios (requiere `gestionar_comentarios`) |
 | GET/POST | `/api/notificaciones/` | Listar/crear notificaciones |
-| GET/POST | `/api/tablero-usuarios/` | Gestionar membresías |
+| GET/POST | `/api/tablero-usuarios/` | Gestionar membresías (requiere `gestionar_usuarios`) |
+
+### Endpoints de permisos
+
+| Método | Endpoint | Descripción |
+|---|---|---|
+| POST | `/api/tablero-usuarios/update-permisos/` | Actualizar permisos de un miembro |
+| POST | `/api/tablero-usuarios/update-role/` | Cambiar rol (Administrador/Miembro) |
+| POST | `/api/tablero-usuarios/remove-member/` | Eliminar miembro del tablero |
 
 Todos los endpoints de recursos soportan filtros por query parameters, por ejemplo:
 - `GET /api/tickets/?tablero_id=1` — tickets de un tablero

@@ -1,15 +1,14 @@
 #!/bin/bash
 set -e
 
+echo "Making migrations..."
+python manage.py makemigrations --noinput 2>/dev/null || true
+
 echo "Running migrations..."
 python manage.py migrate --noinput
 
-if [ "$DJANGO_DEBUG" = "True" ]; then
-    echo "DEBUG mode: skipping collectstatic"
-else
-    echo "Production mode: collecting static files"
-    python manage.py collectstatic --noinput
-fi
+echo "Collecting static files..."
+python manage.py collectstatic --noinput
 
 # Create or update admin user
 python manage.py shell -c "

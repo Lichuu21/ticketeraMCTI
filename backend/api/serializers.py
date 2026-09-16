@@ -122,6 +122,8 @@ class TableroUsuarioSerializer(serializers.ModelSerializer):
         data = super().to_representation(instance)
         data['tablero_id'] = instance.tablero_id
         data['usuario_id'] = instance.usuario_id
+        if 'permisos' in data:
+            data['permisos_tablero'] = data.pop('permisos')
         return data
 
 

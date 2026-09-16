@@ -5,6 +5,7 @@ from core.models import (
     SiteSetting, Usuario, Tablero, TableroUsuario, Ticket,
     Comentario, Notificacion, WallpaperGroup, Wallpaper
 )
+from core.permissions import get_permisos_usuario, check_permiso
 from .serializers import (
     UsuarioSerializer, TableroSerializer, TableroUsuarioSerializer,
     TicketSerializer, ComentarioSerializer, NotificacionSerializer,
@@ -62,6 +63,24 @@ class TableroUsuarioViewSet(viewsets.ModelViewSet):
     filterset_fields = ['tablero', 'usuario', 'tablero_id', 'usuario_id']
     ordering_fields = ['id']
 
+    def _check_gestionar_usuarios(self, request):
+        tablero_id = request.data.get('tablero_id') or request.query_params.get('tablero_id')
+        if tablero_id and not check_permiso(request.user, int(tablero_id), 'gestionar_usuarios'):
+            return Response({'error': 'No tienes permiso para gestionar usuarios'}, status=403)
+        return None
+
+    def create(self, request, *args, **kwargs):
+        denied = self._check_gestionar_usuarios(request)
+        if denied:
+            return denied
+        return super().create(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        denied = self._check_gestionar_usuarios(request)
+        if denied:
+            return denied
+        return super().destroy(request, *args, **kwargs)
+
 
 class TicketViewSet(viewsets.ModelViewSet):
     queryset = Ticket.objects.all()
@@ -76,6 +95,44 @@ class TicketViewSet(viewsets.ModelViewSet):
         if tablero_id:
             qs = qs.filter(tablero_id=tablero_id)
         return qs
+
+    def _check_tablero_permiso(self, request, permiso):
+        tablero_id = request.data.get('tablero_id') or request.query_params.get('tablero_id')
+        if not tablero_id:
+            ticket_id = request.data.get('ticket_id') or request.query_params.get('ticket_id')
+            if ticket_id:
+                try:
+                    ticket = Ticket.objects.get(pk=ticket_id)
+                    tablero_id = ticket.tablero_id
+                except Ticket.DoesNotExist:
+                    pass
+        if tablero_id and not check_permiso(request.user, int(tablero_id), permiso):
+            return Response({'error': f'No tienes permiso de {permiso}'}, status=403)
+        return None
+
+    def create(self, request, *args, **kwargs):
+        denied = self._check_tablero_permiso(request, 'crear_tickets')
+        if denied:
+            return denied
+        return super().create(request, *args, **kwargs)
+
+    def update(self, request, *args, **kwargs):
+        denied = self._check_tablero_permiso(request, 'editar_tickets')
+        if denied:
+            return denied
+        return super().update(request, *args, **kwargs)
+
+    def partial_update(self, request, *args, **kwargs):
+        denied = self._check_tablero_permiso(request, 'editar_tickets')
+        if denied:
+            return denied
+        return super().partial_update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        denied = self._check_tablero_permiso(request, 'eliminar_tickets')
+        if denied:
+            return denied
+        return super().destroy(request, *args, **kwargs)
 
     @action(detail=False, methods=['post'], url_path='reorder')
     def reorder(self, request):
@@ -119,8 +176,39 @@ class ComentarioViewSet(viewsets.ModelViewSet):
             qs = qs.filter(ticket_id=ticket_id)
         return qs
 
+    def _check_comentario_permiso(self, request):
+        ticket_id = request.data.get('ticket_id') or request.query_params.get('ticket_id')
+        if not ticket_id:
+            comentario_id = request.data.get('comentario_id') or request.query_params.get('comentario_id')
+            if comentario_id:
+                try:
+                    c = Comentario.objects.get(pk=comentario_id)
+                    ticket_id = c.ticket_id
+                except Comentario.DoesNotExist:
+                    pass
+        if ticket_id:
+            try:
+                ticket = Ticket.objects.get(pk=ticket_id)
+                if not check_permiso(request.user, ticket.tablero_id, 'gestionar_comentarios'):
+                    return Response({'error': 'No tienes permiso para gestionar comentarios'}, status=403)
+            except Ticket.DoesNotExist:
+                pass
+        return None
+
+    def create(self, request, *args, **kwargs):
+        denied = self._check_comentario_permiso(request)
+        if denied:
+            return denied
+        return super().create(request, *args, **kwargs)
+
     def perform_create(self, serializer):
         serializer.save(usuario=self.request.user)
+
+    def destroy(self, request, *args, **kwargs):
+        denied = self._check_comentario_permiso(request)
+        if denied:
+            return denied
+        return super().destroy(request, *args, **kwargs)
 
 
 class NotificacionViewSet(viewsets.ModelViewSet):
