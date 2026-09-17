@@ -54,7 +54,19 @@ class TableroViewSet(viewsets.ModelViewSet):
             usuario=self.request.user,
             defaults={'rol_en_tablero': 'Administrador'}
         )
-
+    def destroy(self, request, *args, **kwargs):
+        try:
+            instance = self.get_object()
+            instance.delete()
+            return Response(
+                {"detail": "Tablero eliminado correctamente."},
+                status=status.HTTP_200_OK  # Devuelve 200 OK con JSON
+            )
+        except Tablero.DoesNotExist:
+            return Response(
+                {"detail": "No Tablero matches the given query."},
+                status=status.HTTP_404_NOT_FOUND
+            )
 
 class TableroUsuarioViewSet(viewsets.ModelViewSet):
     queryset = TableroUsuario.objects.all()
