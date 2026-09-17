@@ -65,7 +65,10 @@ export const auth = {
   async signUp({ email, password, data: userData }) {
     try {
       const data = await apiRequest('POST', '/auth/register/', {
-        email, password, nombre: userData?.nombre_completo || '',
+        email, password,
+        nombre: userData?.nombre || '',
+        apellido: userData?.apellido || '',
+        dependencia: userData?.dependencia || '',
       });
       if (data.error) return { data: null, error: { message: data.error } };
       return { data: { user: data }, error: null };
@@ -441,10 +444,90 @@ export const storage = {
   },
 };
 
+// ─── ROLES ─────────────────────────────────────────────
+export const roles = {
+  async getAll() {
+    try {
+      const data = await apiRequest('GET', '/roles/');
+      return { data, error: null };
+    } catch (e) {
+      return formatError(e);
+    }
+  },
+
+  async create(rolData) {
+    try {
+      const data = await apiRequest('POST', '/roles/', rolData);
+      return { data, error: null };
+    } catch (e) {
+      return formatError(e);
+    }
+  },
+
+  async update(id, updates) {
+    try {
+      const data = await apiRequest('PATCH', `/roles/${id}/`, updates);
+      return { data, error: null };
+    } catch (e) {
+      return formatError(e);
+    }
+  },
+
+  async delete(id) {
+    try {
+      await apiRequest('DELETE', `/roles/${id}/`);
+      return { error: null };
+    } catch (e) {
+      return formatError(e);
+    }
+  },
+};
+
+// ─── GRUPOS ────────────────────────────────────────────
+export const grupos = {
+  async getAll() {
+    try {
+      const data = await apiRequest('GET', '/grupos/');
+      return { data, error: null };
+    } catch (e) {
+      return formatError(e);
+    }
+  },
+
+  async create(grupoData) {
+    try {
+      const data = await apiRequest('POST', '/grupos/', grupoData);
+      return { data, error: null };
+    } catch (e) {
+      return formatError(e);
+    }
+  },
+
+  async update(id, updates) {
+    try {
+      const data = await apiRequest('PATCH', `/grupos/${id}/`, updates);
+      return { data, error: null };
+    } catch (e) {
+      return formatError(e);
+    }
+  },
+
+  async delete(id) {
+    try {
+      await apiRequest('DELETE', `/grupos/${id}/`);
+      return { error: null };
+    } catch (e) {
+      return formatError(e);
+    }
+  },
+};
+
 // ─── DEFAULT EXPORT ──────────────────────────────────────
 export default {
   auth,
   usuarios,
+  roles,
+  grupos,
   tableros,
   tableroUsuarios,
   tickets,

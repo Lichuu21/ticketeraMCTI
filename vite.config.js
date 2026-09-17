@@ -23,6 +23,14 @@ export default defineConfig({
         target: 'http://ticket-api:8000',
         changeOrigin: true,
       },
+      '/static': {
+        target: 'http://ticket-api:8000',
+        changeOrigin: true,
+      },
+      '/admin': {
+        target: 'http://ticket-api:8000',
+        changeOrigin: true,
+      },
     },
   }
 })

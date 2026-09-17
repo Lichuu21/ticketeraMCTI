@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from core.models import (
     SiteSetting, Usuario, Tablero, TableroUsuario, Ticket,
-    Comentario, Notificacion, CambioPassword, WallpaperGroup, Wallpaper
+    Comentario, Notificacion, WallpaperGroup, Wallpaper, Rol, Group
 )
 
 
@@ -56,16 +56,61 @@ class WallpaperSerializer(serializers.ModelSerializer):
         return f'/media/{obj.imagen.name}' if obj.imagen else ''
 
 
+class RolSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Rol
+        fields = ['id', 'nombre', 'tableros']
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data['tableros'] = list(instance.tableros.values_list('id', flat=True))
+        return data
+
+
+class GroupSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Group
+        fields = ['id', 'nombre']
+
+
 class UsuarioSerializer(serializers.ModelSerializer):
+    roles_detalle = RolSerializer(source='roles', many=True, read_only=True)
+    groups_detalle = GroupSerializer(source='groups', many=True, read_only=True)
+
     class Meta:
         model = Usuario
-        fields = ['id', 'username', 'email', 'nombre', 'dependencia', 'piso', 'rol', 'debe_cambiar_password', 'is_staff', 'is_superuser']
+        fields = [
+            'id', 'email', 'username', 'nombre', 'apellido', 'dependencia',
+            'debe_cambiar_password', 'is_active', 'is_superuser',
+            'roles', 'roles_detalle', 'groups', 'groups_detalle',
+            'last_login', 'date_joined',
+        ]
+        read_only_fields = ['last_login', 'date_joined']
+        extra_kwargs = {
+            'roles': {'required': False},
+            'groups': {'required': False},
+        }
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data['is_staff'] = True
+        data['roles'] = list(instance.roles.values_list('id', flat=True))
+        data['groups'] = list(instance.groups.values_list('id', flat=True))
+        return data
 
-class CambioPasswordSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = CambioPassword
-        fields = '__all__'
+    def create(self, validated_data):
+        roles_data = validated_data.pop('roles', [])
+        groups_data = validated_data.pop('groups', [])
+        password = validated_data.pop('password', None)
+        user = Usuario(**validated_data)
+        if password:
+            user.set_password(password)
+        else:
+            user.set_password('Cti1234')
+        user.save()
+        user.roles.set(roles_data)
+        user.groups.set(groups_data)
+        return user
 
 
 class TableroSerializer(serializers.ModelSerializer):
@@ -110,13 +155,16 @@ class TableroUsuarioSerializer(serializers.ModelSerializer):
         write_only=True,
         required=False
     )
-    usuario_nombre = serializers.CharField(source='usuario.nombre', read_only=True, default='')
+    usuario_nombre = serializers.SerializerMethodField()
     usuario_email = serializers.CharField(source='usuario.email', read_only=True, default='')
 
     class Meta:
         model = TableroUsuario
         fields = ['id', 'tablero', 'tablero_id', 'usuario', 'usuario_id', 'usuario_nombre', 'usuario_email', 'rol_en_tablero', 'permisos']
         read_only_fields = ['tablero', 'usuario']
+
+    def get_usuario_nombre(self, obj):
+        return f'{obj.usuario.nombre} {obj.usuario.apellido}'.strip()
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
@@ -172,12 +220,17 @@ class ComentarioSerializer(serializers.ModelSerializer):
         required=False,
         allow_null=True
     )
-    usuario_nombre = serializers.CharField(source='usuario.nombre', read_only=True, default='')
+    usuario_nombre = serializers.SerializerMethodField()
 
     class Meta:
         model = Comentario
         fields = ['id', 'ticket', 'ticket_id', 'usuario', 'usuario_id', 'usuario_nombre', 'texto', 'created_at']
         read_only_fields = ['ticket', 'usuario']
+
+    def get_usuario_nombre(self, obj):
+        if obj.usuario:
+            return f'{obj.usuario.nombre} {obj.usuario.apellido}'.strip()
+        return ''
 
     def to_representation(self, instance):
         data = super().to_representation(instance)

@@ -1,8 +1,90 @@
-from django.contrib.auth.models import AbstractUser
+from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
 from django.conf import settings
 from django.utils import timezone
 import os
+
+
+class UserManager(BaseUserManager):
+    def create_user(self, email, password=None, **extra_fields):
+        if not email:
+            raise ValueError('El email es requerido')
+        email = self.normalize_email(email)
+        user = self.model(email=email, **extra_fields)
+        user.set_password(password)
+        user.save(using=self._db)
+        return user
+
+    def create_superuser(self, email, password=None, **extra_fields):
+        extra_fields.setdefault('is_superuser', True)
+        extra_fields.setdefault('is_active', True)
+        return self.create_user(email, password, **extra_fields)
+
+
+class Rol(models.Model):
+    nombre = models.CharField(max_length=100, unique=True)
+    tableros = models.ManyToManyField('Tablero', blank=True, related_name='roles')
+
+    class Meta:
+        db_table = 'roles'
+        ordering = ['nombre']
+
+    def __str__(self):
+        return self.nombre
+
+
+class Group(models.Model):
+    nombre = models.CharField(max_length=100, unique=True)
+
+    class Meta:
+        db_table = 'grupos'
+        ordering = ['nombre']
+        verbose_name = 'Grupo'
+        verbose_name_plural = 'Grupos'
+
+    def __str__(self):
+        return self.nombre
+
+
+class Usuario(AbstractBaseUser, PermissionsMixin):
+    nombre = models.CharField(max_length=200)
+    apellido = models.CharField(max_length=200)
+    username = models.CharField(max_length=150, unique=True, blank=True, default='')
+    email = models.EmailField(unique=True)
+    dependencia = models.CharField(max_length=200, blank=True, default='')
+    debe_cambiar_password = models.BooleanField(default=True)
+    is_active = models.BooleanField(default=True)
+    is_superuser = models.BooleanField(default=False)
+    roles = models.ManyToManyField(Rol, blank=True, related_name='usuarios')
+    groups = models.ManyToManyField(Group, blank=True, related_name='usuarios')
+    date_joined = models.DateTimeField(default=timezone.now)
+
+    objects = UserManager()
+
+    USERNAME_FIELD = 'email'
+    REQUIRED_FIELDS = ['nombre', 'apellido']
+
+    class Meta:
+        db_table = 'usuarios'
+        verbose_name = 'Usuario'
+        verbose_name_plural = 'Usuarios'
+
+    def __str__(self):
+        return f'{self.nombre} {self.apellido}'.strip() or self.email
+
+    @property
+    def is_staff(self):
+        return True
+
+    def has_perm(self, perm, obj=None):
+        if self.is_superuser:
+            return True
+        return super().has_perm(perm, obj)
+
+    def has_module_perms(self, app_label):
+        if self.is_superuser:
+            return True
+        return super().has_module_perms(app_label)
 
 
 class SiteSetting(models.Model):
@@ -32,66 +114,6 @@ class SiteSetting(models.Model):
 
     def __str__(self):
         return self.nombre_sistema
-
-
-class Usuario(AbstractUser):
-    nombre = models.CharField(max_length=200, blank=True, default='')
-    dependencia = models.CharField(max_length=200, blank=True, default='')
-    piso = models.CharField(max_length=50, blank=True, default='')
-    rol = models.CharField(max_length=100, blank=True, default='Usuario')
-    debe_cambiar_password = models.BooleanField(default=True)
-
-    class Meta:
-        db_table = 'usuarios'
-
-    def save(self, *args, **kwargs):
-        if not self.username and self.email:
-            self.username = self.email.strip()
-        if not self.nombre or not self.nombre.strip():
-            if self.first_name and self.last_name:
-                self.nombre = f"{self.first_name} {self.last_name}".strip()
-            elif self.first_name:
-                self.nombre = self.first_name.strip()
-            elif self.email:
-                local_part = self.email.split('@')[0]
-                self.nombre = local_part.replace('.', ' ').replace('_', ' ').replace('-', ' ').title()
-            elif self.username:
-                self.nombre = self.username.split('@')[0].replace('.', ' ').title()
-            else:
-                self.nombre = 'Usuario'
-
-        if not self.first_name or not self.first_name.strip():
-            self.first_name = self.nombre
-
-        if not self.dependencia or not self.dependencia.strip():
-            self.dependencia = 'Sin Especificar'
-
-        if not self.piso or not self.piso.strip():
-            self.piso = '-'
-
-        if not self.rol or not self.rol.strip():
-            self.rol = 'Administrador' if (self.is_staff or self.is_superuser) else 'Usuario'
-
-        if str(self.rol).strip().lower() in ['administrador', 'admin', 'jefe']:
-            self.is_staff = True
-            self.is_superuser = True
-
-        super().save(*args, **kwargs)
-
-    def __str__(self):
-        return self.nombre or self.email
-
-
-
-class CambioPassword(models.Model):
-    usuario = models.OneToOneField(Usuario, on_delete=models.CASCADE, related_name='cambio_password_status')
-    debe_cambiar = models.BooleanField(default=True)
-
-    class Meta:
-        db_table = 'cambio_passwords'
-
-    def __str__(self):
-        return f"{self.usuario.username} - debe_cambiar: {self.debe_cambiar}"
 
 
 class Tablero(models.Model):
@@ -169,6 +191,7 @@ class Notificacion(models.Model):
         db_table = 'notificaciones'
         ordering = ['-created_at']
 
+
 class WallpaperGroup(models.Model):
     nombre = models.CharField(max_length=100, unique=True)
     icono = models.CharField(max_length=10, blank=True, default='')
@@ -182,6 +205,7 @@ class WallpaperGroup(models.Model):
 
     def __str__(self):
         return self.nombre
+
 
 class Wallpaper(models.Model):
     nombre = models.CharField(max_length=150, unique=True)

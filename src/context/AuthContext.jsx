@@ -39,11 +39,11 @@ export const AuthProvider = ({ children }) => {
         return { data: fullUser, error: null };
     };
 
-    const registro = async (email, password, nombreData) => {
+    const registro = async (email, password, nombreData, apellidoData) => {
         const { data, error } = await api.auth.signUp({
             email,
             password,
-            data: { nombre_completo: nombreData }
+            data: { nombre: nombreData, apellido: apellidoData }
         });
         return { data, error };
     };

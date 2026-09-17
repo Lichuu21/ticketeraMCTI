@@ -40,7 +40,7 @@ const DEPARTAMENTOS = ['Soporte Técnico', 'Telefonía'];
 const getPermisosByUser = (u, tablero) => {
   if (!u) return PERMISOS_MIEMBRO_DEFAULT;
 
-  const isGlobalAdmin = !!(u?.is_superuser || u?.is_staff);
+  const isGlobalAdmin = !!(u?.is_superuser);
   const isCreator = !!(tablero && (
     String(tablero.creador) === String(u?.id) ||
     String(tablero.creador_id) === String(u?.id) ||
@@ -542,7 +542,7 @@ const TicketForm = ({ initialConfig, onSubmit, onCancel, user, usuarios, tipoTab
                       </div>
                       <div className="flex flex-col min-w-0 flex-1">
                         <span className="text-xs text-slate-700 dark:text-slate-200 font-bold group-hover:text-[#065E94] dark:group-hover:text-blue-400 transition-colors truncate">{u.nombre}</span>
-                        <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium truncate">{u.dependencia || 'Sin dep.'} (Piso {u.piso || '0'})</span>
+                        <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium truncate">{u.dependencia || 'Sin dep.'}</span>
                       </div>
                     </label>
                   );
@@ -671,7 +671,7 @@ export default function TableroKanban() {
 
 
   const [formUsuario, setFormUsuario] = useState({
-    nombre: '', dependencia: '', piso: '', rol: 'Soporte Tecnico'
+    nombre: '', email: '', dependencia: ''
   });
 
 
@@ -841,7 +841,7 @@ export default function TableroKanban() {
 
     const { data: perfilGlobal } = await api.usuarios.getById(user.id);
 
-    const isGlobalAdmin = perfilGlobal?.rol === 'Administrador' || !!(user?.is_staff || user?.is_superuser);
+    const isGlobalAdmin = user?.is_superuser || perfilGlobal?.roles?.includes('Administrador');
     const isCreator = String(tablero.creador) === String(user.id) || String(tablero.creador_id) === String(user.id) || (typeof tablero.creador === 'object' && String(tablero.creador?.id) === String(user.id));
 
     const { data: membresiasData, error: memErr } = await api.tableroUsuarios.getByTablero(tableroId);
@@ -1388,9 +1388,9 @@ export default function TableroKanban() {
     console.log("▶ Iniciando handleCrearUsuario...");
     e.preventDefault();
     console.log("Valores formUsuario:", formUsuario);
-    if (!formUsuario.nombre || !formUsuario.email || !formUsuario.dependencia || !formUsuario.piso || !formUsuario.rol) {
+    if (!formUsuario.nombre || !formUsuario.email || !formUsuario.dependencia) {
       console.warn("Faltan campos obligatorios");
-      alert("Por favor completa todos los campos.");
+      alert("Por favor completa nombre, email y dependencia.");
       return;
     }
 
@@ -1400,8 +1400,6 @@ export default function TableroKanban() {
           nombre: formUsuario.nombre,
           email: formUsuario.email,
           dependencia: formUsuario.dependencia,
-          piso: formUsuario.piso,
-          rol: formUsuario.rol
         });
 
       if (error) {
@@ -1412,7 +1410,7 @@ export default function TableroKanban() {
 
       if (data) {
         console.log("Usuario creado exitosamente!", data);
-        setFormUsuario({ nombre: '', email: '', dependencia: '', piso: '', rol: 'Soporte Tecnico' });
+        setFormUsuario({ nombre: '', email: '', dependencia: '' });
         setUsuarios(prev => {
           const nuevosUsuarios = [...prev, data];
           return nuevosUsuarios.sort((a, b) => a.nombre.localeCompare(b.nombre));
@@ -1513,17 +1511,13 @@ export default function TableroKanban() {
   const handleEliminarTicket = async () => {
     if (!ticketAEliminar) return;
 
-    // Usamos .select() para verificar si la base de datos realmente eliminó la fila
     const { data, error } = await api.tickets.delete(ticketAEliminar.id);
 
     if (error) {
       console.error('Error al eliminar ticket', error);
       alert('Error al eliminar el ticket.');
-    } else if (data && data.length === 0) {
-      alert('⚠️ No se pudo eliminar el ticket de la base de datos porque las políticas de seguridad (RLS) de Supabase están bloqueando la acción.\n\nPor favor, revisa los permisos en la tabla "tickets" desde tu panel de Supabase.');
-      setTicketAEliminar(null);
     } else {
-      setTickets(prev => prev.filter(t => t.id !== ticketAEliminar.id)); // Instantáneo
+      setTickets(prev => prev.filter(t => t.id !== ticketAEliminar.id));
       setTicketAEliminar(null);
       setTicketActivo(null);
       setDetalleOpen(false);
@@ -2376,9 +2370,11 @@ export default function TableroKanban() {
                   {usuarios.find(u => u.id === user.id)?.nombre || user.email}
                 </span>
                 <span className="text-sm text-slate-500 dark:text-neutral-400 truncate" title={user.email}>{user.email}</span>
-                <span className="mt-1 inline-block text-[10px] uppercase font-bold text-[#065E94] dark:text-blue-400 tracking-wider bg-blue-50 dark:bg-blue-500/10 px-2 py-0.5 rounded-md w-max border border-blue-100/50 dark:border-blue-800/50">
-                  {usuarios.find(u => u.id === user.id)?.rol || 'Rol Desconocido'}
-                </span>
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {(usuarios.find(u => u.id === user.id)?.roles_detalle || []).map(rol => (
+                    <span key={rol.id} className="text-[10px] uppercase font-bold text-[#065E94] dark:text-blue-400 tracking-wider bg-blue-50 dark:bg-blue-500/10 px-2 py-0.5 rounded-md border border-blue-100/50 dark:border-blue-800/50">{rol.nombre}</span>
+                  ))}
+                </div>
               </div>
             </div>
 
@@ -2514,9 +2510,13 @@ export default function TableroKanban() {
 
                           <p className="text-[11px] sm:text-xs text-slate-500 dark:text-neutral-400 font-medium truncate mt-0.2">{u.email}</p>
                           <p className="text-[9px] sm:text-[10px] text-slate-400 dark:text-slate-500 font-semibold uppercase tracking-wider mt-0.2 truncate">
-                            {u.dependencia || 'Sin dep'} • Piso {u.piso || '0'}
-                            {u.rol && ` • ${u.rol}`}
+                            {u.dependencia || 'Sin dep'}
                           </p>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {(u.roles_detalle || []).map(rol => (
+                              <span key={rol.id} className="text-[9px] uppercase font-bold text-[#065E94] dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 px-1.5 py-0.5 rounded-full">{rol.nombre}</span>
+                            ))}
+                          </div>
                         </div>
 
                         {/* Controles del Miembro */}

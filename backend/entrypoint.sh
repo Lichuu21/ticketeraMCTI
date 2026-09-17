@@ -14,14 +14,13 @@ python manage.py collectstatic --noinput
 python manage.py shell -c "
 from core.models import Usuario
 u, created = Usuario.objects.get_or_create(
-    username='admin@ticket.com.ar',
+    email='admin@ticket.com.ar',
     defaults={
-        'email': 'admin@ticket.com.ar',
         'nombre': 'Administrador',
-        'rol': 'Administrador',
-        'is_staff': True,
+        'apellido': 'Sistema',
         'is_superuser': True,
-        'debe_cambiar_password': True,
+        'is_active': True,
+        'debe_cambiar_password': False,
     }
 )
 if created:
@@ -29,11 +28,10 @@ if created:
     u.save()
     print('Admin user created: admin@ticket.com.ar / EstoNoEsPass')
 else:
-    u.rol = 'Administrador'
-    u.is_staff = True
     u.is_superuser = True
+    u.is_active = True
     u.save()
-    print('Admin user updated: rol Administrador')
+    print('Admin user updated')
 " || true
 
 # Create default SiteSetting if it doesn't exist

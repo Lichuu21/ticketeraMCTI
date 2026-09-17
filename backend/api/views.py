@@ -3,14 +3,14 @@ from rest_framework.decorators import api_view, permission_classes, action
 from rest_framework.response import Response
 from core.models import (
     SiteSetting, Usuario, Tablero, TableroUsuario, Ticket,
-    Comentario, Notificacion, WallpaperGroup, Wallpaper
+    Comentario, Notificacion, WallpaperGroup, Wallpaper, Rol, Group
 )
 from core.permissions import get_permisos_usuario, check_permiso
 from .serializers import (
     UsuarioSerializer, TableroSerializer, TableroUsuarioSerializer,
     TicketSerializer, ComentarioSerializer, NotificacionSerializer,
     SiteSettingSerializer, WallpaperGroupSerializer, WallpaperSerializer,
-    WallpaperThumbSerializer
+    WallpaperThumbSerializer, RolSerializer, GroupSerializer
 )
 import os
 from django.conf import settings
@@ -23,12 +23,38 @@ class IsAuthenticatedOrReadOnly(permissions.BasePermission):
         return request.user and request.user.is_authenticated
 
 
+class RolViewSet(viewsets.ModelViewSet):
+    queryset = Rol.objects.all()
+    serializer_class = RolSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    ordering_fields = ['nombre']
+
+
+class GroupViewSet(viewsets.ModelViewSet):
+    queryset = Group.objects.all()
+    serializer_class = GroupSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    ordering_fields = ['nombre']
+
+
 class UsuarioViewSet(viewsets.ModelViewSet):
     queryset = Usuario.objects.all()
     serializer_class = UsuarioSerializer
     permission_classes = [permissions.IsAuthenticated]
     filterset_fields = ['email', 'username']
-    ordering_fields = ['nombre', 'email', 'id']
+    ordering_fields = ['nombre', 'apellido', 'email', 'id']
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        search = self.request.query_params.get('search')
+        if search:
+            from django.db.models import Q
+            qs = qs.filter(
+                Q(nombre__icontains=search) |
+                Q(apellido__icontains=search) |
+                Q(email__icontains=search)
+            )
+        return qs
 
 
 class TableroViewSet(viewsets.ModelViewSet):
@@ -111,7 +137,7 @@ class TicketViewSet(viewsets.ModelViewSet):
     def _check_tablero_permiso(self, request, permiso):
         tablero_id = request.data.get('tablero_id') or request.query_params.get('tablero_id')
         if not tablero_id:
-            ticket_id = request.data.get('ticket_id') or request.query_params.get('ticket_id')
+            ticket_id = request.data.get('ticket_id') or request.query_params.get('ticket_id') or self.kwargs.get('pk')
             if ticket_id:
                 try:
                     ticket = Ticket.objects.get(pk=ticket_id)
@@ -144,14 +170,12 @@ class TicketViewSet(viewsets.ModelViewSet):
         denied = self._check_tablero_permiso(request, 'eliminar_tickets')
         if denied:
             return denied
-        return super().destroy(request, *args, **kwargs)
+        ticket = self.get_object()
+        ticket.delete()
+        return Response({'deleted': 1})
 
     @action(detail=False, methods=['post'], url_path='reorder')
     def reorder(self, request):
-        """
-        Recibe: { "columnas": { "NombreColumna": [id1, id2, id3], ... } }
-        Actualiza estado y posicion de cada ticket de forma atomica.
-        """
         from django.db import transaction
         columnas = request.data.get('columnas', {})
         if not columnas or not isinstance(columnas, dict):
@@ -191,7 +215,7 @@ class ComentarioViewSet(viewsets.ModelViewSet):
     def _check_comentario_permiso(self, request):
         ticket_id = request.data.get('ticket_id') or request.query_params.get('ticket_id')
         if not ticket_id:
-            comentario_id = request.data.get('comentario_id') or request.query_params.get('comentario_id')
+            comentario_id = request.data.get('comentario_id') or request.query_params.get('comentario_id') or self.kwargs.get('pk')
             if comentario_id:
                 try:
                     c = Comentario.objects.get(pk=comentario_id)
@@ -266,19 +290,12 @@ def login_view(request):
     user = authenticate(request, username=email_or_username, password=password)
 
     if user is None and email_or_username:
-        # Search by email or username case-insensitively
         user_obj = Usuario.objects.filter(
             models.Q(email__iexact=email_or_username) | models.Q(username__iexact=email_or_username)
         ).first()
 
         if user_obj:
-            user = authenticate(request, username=user_obj.username, password=password)
-
-            # Legacy plain-text password fallback if check_password fails
-            if user is None and user_obj.password == password:
-                user_obj.set_password(password)
-                user_obj.save()
-                user = authenticate(request, username=user_obj.username, password=password)
+            user = authenticate(request, username=user_obj.email, password=password)
 
     if user is not None:
         login(request, user)
@@ -294,21 +311,24 @@ def register_view(request):
     email = data.get('email', '').strip()
     password = data.get('password', '')
     nombre = data.get('nombre', '')
+    apellido = data.get('apellido', '')
     dependencia = data.get('dependencia', '')
-    piso = data.get('piso', '')
 
     if not email or not password:
         return Response({'error': 'El correo y la contraseña son requeridos'}, status=400)
 
+    if not nombre:
+        nombre = email.split('@')[0].title()
+    if not apellido:
+        apellido = ''
+
     try:
         user = Usuario.objects.create_user(
-            username=email,
             email=email,
             password=password,
             nombre=nombre,
+            apellido=apellido,
             dependencia=dependencia,
-            piso=piso,
-            rol='Usuario',
             debe_cambiar_password=True,
         )
         return Response(UsuarioSerializer(user).data, status=201)
@@ -342,9 +362,6 @@ def change_password_view(request):
     user.set_password(new_password)
     user.debe_cambiar_password = False
     user.save()
-    if hasattr(user, 'cambio_password_status'):
-        user.cambio_password_status.debe_cambiar = False
-        user.cambio_password_status.save()
     update_session_auth_hash(request, user)
     return Response({'status': 'ok'})
 
@@ -373,26 +390,21 @@ def create_user_admin_view(request):
     email = data.get('email', '').strip()
     password = data.get('password', 'Cti1234')
     nombre = data.get('nombre', '')
+    apellido = data.get('apellido', '')
     dependencia = data.get('dependencia', '')
-    piso = data.get('piso', '')
-    rol = data.get('rol', 'Usuario')
+    is_superuser = data.get('is_superuser', False)
 
     if not email:
         return Response({'error': 'El correo electrónico es requerido'}, status=400)
 
-    is_admin = rol.lower() in ['administrador', 'admin', 'jefe']
-
     try:
         user = Usuario.objects.create_user(
-            username=email,
             email=email,
             password=password,
-            nombre=nombre,
+            nombre=nombre or email.split('@')[0].title(),
+            apellido=apellido,
             dependencia=dependencia,
-            piso=piso,
-            rol=rol,
-            is_staff=is_admin,
-            is_superuser=is_admin,
+            is_superuser=is_superuser,
             debe_cambiar_password=True,
         )
         return Response(UsuarioSerializer(user).data, status=201)

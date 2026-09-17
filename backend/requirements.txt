@@ -6,3 +6,4 @@ django-jazzmin>=2.2
 mysqlclient>=2.2
 gunicorn>=22.0
 Pillow>=10.0.0
+whitenoise>=6.7

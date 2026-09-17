@@ -1,0 +1,38 @@
+/* Wider sidebar for Django admin */
+.main-sidebar,
+.main-sidebar .brand-container {
+    width: 280px !important;
+    min-width: 280px !important;
+}
+
+.content-wrapper,
+.main-footer,
+.main-header {
+    margin-left: 280px !important;
+}
+
+@media (max-width: 991.98px) {
+    .main-sidebar,
+    .main-sidebar .brand-container {
+        width: 250px !important;
+        min-width: 250px !important;
+    }
+    .content-wrapper,
+    .main-footer,
+    .main-header {
+        margin-left: 250px !important;
+    }
+}
+
+/* Collapsed sidebar */
+.sidebar-collapse .main-sidebar,
+.sidebar-collapse .main-sidebar .brand-container {
+    width: 69px !important;
+    min-width: 69px !important;
+}
+
+.sidebar-collapse .content-wrapper,
+.sidebar-collapse .main-footer,
+.sidebar-collapse .main-header {
+    margin-left: 69px !important;
+}

@@ -78,12 +78,29 @@ Ver [DER.md](DER.md) para el diagrama entidad-relación completo.
 
 | Tabla | Descripción |
 |---|---|
-| `usuarios` | Perfiles de usuario (extiende Django AbstractUser) |
+| `usuarios` | Perfiles de usuario (AbstractBaseUser + PermissionsMixin) |
+| `roles` | Roles del sistema (nombre único + permisos por tablero) |
+| `groups` | Grupos de usuario para restringir acceso al admin |
 | `tableros` | Tableros Kanban con columnas configurables |
 | `tablero_usuarios` | Membresía de usuarios en tableros + permisos granulares |
 | `tickets` | Tickets/Notas dentro de un tablero |
 | `comentarios` | Comentarios y trazabilidad de auditoría |
 | `notificaciones` | Alertas para miembros del tablero |
+
+### Campos del modelo Usuario
+
+| Campo | Tipo | Descripción |
+|---|---|---|
+| `email` | EmailField (unique) | Campo de inicio de sesión |
+| `nombre` | CharField | Nombre del usuario |
+| `apellido` | CharField | Apellido del usuario |
+| `dependencia` | CharField | Dependencia o área de trabajo |
+| `is_superuser` | BooleanField | Permisos de superadmin |
+| `is_active` | BooleanField | Si la cuenta está activa |
+| `roles` | ManyToManyField→Rol | Roles asignados al usuario |
+| `groups` | ManyToManyField→Group | Grupos de acceso admin |
+| `debe_cambiar_password` | BooleanField | Requiere cambio de contraseña |
+| `last_login` | DateTimeField | Último inicio de sesión |
 
 ## Sistema de Permisos
 

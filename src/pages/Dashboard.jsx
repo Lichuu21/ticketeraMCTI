@@ -357,7 +357,7 @@ export default function Dashboard() {
             <h1 className="text-3xl font-extrabold text-slate-800 dark:text-white tracking-tight">Tus Tableros</h1>
           </div>
           <div className="flex items-center gap-3">
-            {(usuarioPerfil?.rol?.toLowerCase().includes('admin') || usuarioPerfil?.rol?.toLowerCase().includes('jefe') || usuarioPerfil?.permisos?.gestionar_usuarios) && (
+            {(usuarioPerfil?.is_superuser || usuarioPerfil?.roles?.includes('Administrador') || usuarioPerfil?.permisos?.gestionar_usuarios) && (
               <button
                 onClick={() => setModalUsuariosOpen(true)}
                 className="flex items-center gap-2 px-3 md:px-4 py-2 md:py-2.5 rounded-xl text-sm font-bold text-[#065E94] dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-800/40 border border-blue-200 dark:border-blue-700/50 transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5"
@@ -374,7 +374,7 @@ export default function Dashboard() {
               title="Ver perfil y configuración"
             >
               <div className="text-[#065E94] dark:text-neutral-300 font-extrabold text-sm group-hover:scale-110 transition-transform">
-                {getInicial(usuarioPerfil?.nombre || user?.email)}
+                {getInicial(usuarioPerfil?.nombre || usuarioPerfil?.apellido || user?.email)}
               </div>
             </button>
           </div>
@@ -882,13 +882,18 @@ export default function Dashboard() {
               {getInicial(usuarioPerfil?.nombre || user?.email)}
             </div>
             <div className="flex flex-col truncate">
-              <span className="text-lg font-bold text-slate-800 dark:text-white truncate" title={usuarioPerfil?.nombre || user?.email}>
-                {usuarioPerfil?.nombre || user?.email}
+              <span className="text-lg font-bold text-slate-800 dark:text-white truncate" title={`${usuarioPerfil?.nombre || ''} ${usuarioPerfil?.apellido || ''}`}>
+                {usuarioPerfil?.nombre || ''} {usuarioPerfil?.apellido || ''}
               </span>
               <span className="text-sm text-slate-500 dark:text-neutral-400 truncate" title={user?.email}>{user?.email}</span>
-              <span className="mt-1 inline-block text-[10px] uppercase font-bold text-[#065E94] dark:text-blue-400 tracking-wider bg-blue-50 dark:bg-blue-500/10 px-2 py-0.5 rounded-md w-max border border-blue-100/50 dark:border-blue-800/50">
-                {usuarioPerfil?.rol || 'Rol Desconocido'}
-              </span>
+              <div className="mt-1 flex flex-wrap gap-1">
+                {(usuarioPerfil?.roles_detalle || []).map(rol => (
+                  <span key={rol.id} className="text-[10px] uppercase font-bold text-[#065E94] dark:text-blue-400 tracking-wider bg-blue-50 dark:bg-blue-500/10 px-2 py-0.5 rounded-md border border-blue-100/50 dark:border-blue-800/50">{rol.nombre}</span>
+                ))}
+                {(!usuarioPerfil?.roles_detalle || usuarioPerfil.roles_detalle.length === 0) && (
+                  <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider bg-slate-100 dark:bg-white/5 px-2 py-0.5 rounded-md">Sin roles</span>
+                )}
+              </div>
             </div>
           </div>
 
