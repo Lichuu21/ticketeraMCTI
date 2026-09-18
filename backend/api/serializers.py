@@ -24,16 +24,27 @@ class WallpaperGroupSerializer(serializers.ModelSerializer):
 
 
 class WallpaperThumbSerializer(serializers.ModelSerializer):
+    imagen_url = serializers.SerializerMethodField()
     thumb_url = serializers.SerializerMethodField()
 
     class Meta:
         model = Wallpaper
-        fields = ['id', 'nombre', 'thumb_url']
+        fields = ['id', 'nombre', 'imagen_url', 'thumb_url']
+
+    def get_imagen_url(self, obj):
+        if obj.imagen:
+            url = str(obj.imagen.name)
+            return url if url.startswith(('http://', 'https://')) else f'/media/{url}'
+        return ''
 
     def get_thumb_url(self, obj):
         if obj.thumb:
-            return f'/media/{obj.thumb}'
-        return f'/media/{obj.imagen.name}'
+            url = str(obj.thumb.name)
+            return url if url.startswith(('http://', 'https://')) else f'/media/{url}'
+        if obj.imagen:
+            url = str(obj.imagen.name)
+            return url if url.startswith(('http://', 'https://')) else f'/media/{url}'
+        return ''
 
 
 class WallpaperSerializer(serializers.ModelSerializer):
@@ -47,13 +58,18 @@ class WallpaperSerializer(serializers.ModelSerializer):
 
     def get_imagen_url(self, obj):
         if obj.imagen:
-            return f'/media/{obj.imagen.name}'
+            url = str(obj.imagen.name)
+            return url if url.startswith(('http://', 'https://')) else f'/media/{url}'
         return ''
 
     def get_thumb_url(self, obj):
         if obj.thumb:
-            return f'/media/{obj.thumb}'
-        return f'/media/{obj.imagen.name}' if obj.imagen else ''
+            url = str(obj.thumb.name)
+            return url if url.startswith(('http://', 'https://')) else f'/media/{url}'
+        if obj.imagen:
+            url = str(obj.imagen.name)
+            return url if url.startswith(('http://', 'https://')) else f'/media/{url}'
+        return ''
 
 
 class RolSerializer(serializers.ModelSerializer):

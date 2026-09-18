@@ -381,6 +381,16 @@ La autenticación usa cookies de sesión (`credentials: 'include'`).
 
 ---
 
+## Wallpapers (Fondos de Pantalla)
+
+| Método | Ruta | Descripción | Auth |
+|--------|------|-------------|------|
+| `GET` | `/wallpapers-grouped/` | Obtener wallpapers agrupados por categoría | Público |
+| `GET` | `/wallpapers/` | Listar todos los wallpapers activos | Público |
+| `GET` | `/wallpaper-groups/` | Listar grupos de wallpapers | Autenticado |
+
+---
+
 ## Media (Archivos)
 
 | Método | Ruta | Descripción | Auth |
@@ -438,3 +448,6 @@ La autenticación usa cookies de sesión (`credentials: 'include'`).
 | `api.notificaciones.create(data)` | `POST /notificaciones/` |
 | `api.notificaciones.markAsRead(id)` | `PATCH /notificaciones/{id}/` |
 | `api.notificaciones.markTicketAsRead(id)` | `POST /notificaciones/mark-ticket-read/` |
+| `api.wallpapers.getGrouped()` | `GET /wallpapers-grouped/` |
+| `api.wallpapers.getAll()` | `GET /wallpapers/?activo=true` |
+

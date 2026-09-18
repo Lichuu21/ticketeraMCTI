@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
@@ -40,7 +40,13 @@ const DEPARTAMENTOS = ['Soporte Técnico', 'Telefonía'];
 const getPermisosByUser = (u, tablero) => {
   if (!u) return PERMISOS_MIEMBRO_DEFAULT;
 
-  const isGlobalAdmin = !!(u?.is_superuser);
+  // NOTA: no usar u.is_staff porque en el backend actual (Usuario personalizado)
+  // is_staff es siempre True. Se detecta admin por is_superuser o por roles_detalle.
+  const rolesNombres = Array.isArray(u?.roles_detalle)
+    ? u.roles_detalle.map(r => (r?.nombre || '').toLowerCase())
+    : [];
+  const legacyRol = (u?.rol || '').toLowerCase();
+  const isGlobalAdmin = !!(u?.is_superuser || rolesNombres.includes('administrador') || legacyRol === 'administrador');
   const isCreator = !!(tablero && (
     String(tablero.creador) === String(u?.id) ||
     String(tablero.creador_id) === String(u?.id) ||
@@ -61,14 +67,14 @@ const getPermisosByUser = (u, tablero) => {
     }
   }
 
-  if (customPerms && typeof customPerms === 'object' && Object.keys(customPerms).length > 0) {
-    return {
-      ...PERMISOS_MIEMBRO_DEFAULT,
-      ...customPerms
-    };
-  }
+  const basePerms = (customPerms && typeof customPerms === 'object')
+    ? { ...PERMISOS_MIEMBRO_DEFAULT, ...customPerms }
+    : PERMISOS_MIEMBRO_DEFAULT;
 
-  return PERMISOS_MIEMBRO_DEFAULT;
+  return {
+    ...basePerms,
+    gestionar_usuarios: false
+  };
 };
 
 const COLUMNAS_BASE = ['Solicitud', 'En proceso', 'En espera', 'Resuelto'];
@@ -684,46 +690,68 @@ export default function TableroKanban() {
 
   // 🖼️ Wallpaper state
   const [wallpaperModalOpen, setWallpaperModalOpen] = useState(false);
-  const [categoriaFondo, setCategoriaFondo] = useState('general');
+  const [categoriaFondo, setCategoriaFondo] = useState('1');
+  const [backendWallpaperGroups, setBackendWallpaperGroups] = useState([]);
   const [activeWallpaper, setActiveWallpaper] = useState(() => {
-    return localStorage.getItem('activeWallpaper') || 'montanas';
+    return localStorage.getItem('activeWallpaper') || '1';
   });
 
-  const WALLPAPERS = [
-    // FONDOS GENERALES
-    { id: 'none', categoria: 'general', label: 'Sin fondo', thumb: null, url: null },
-    { id: 'montanas', categoria: 'general', label: 'Montañas', thumb: '/wallpapers/thumbs/montanas.jpg', url: '/wallpapers/montanas.jpg' },
-    { id: 'aurora', categoria: 'general', label: 'Aurora Boreal', thumb: '/wallpapers/thumbs/aurora.jpg', url: '/wallpapers/aurora.jpg' },
-    { id: 'bosque', categoria: 'general', label: 'Bosque', thumb: '/wallpapers/thumbs/bosque.jpg', url: '/wallpapers/bosque.jpg' },
-    { id: 'desierto', categoria: 'general', label: 'Desierto', thumb: '/wallpapers/thumbs/desierto.jpg', url: '/wallpapers/desierto.jpg' },
-    { id: 'galaxia', categoria: 'general', label: 'Galaxia', thumb: '/wallpapers/galaxia.jpg?v=3', url: '/wallpapers/galaxia.jpg?v=3' },
-    { id: 'cascada', categoria: 'general', label: 'Cascada', thumb: '/wallpapers/thumbs/cascada.jpg', url: '/wallpapers/cascada.jpg' },
-    { id: 'playa', categoria: 'general', label: 'Playa', thumb: '/wallpapers/thumbs/playa.jpg', url: '/wallpapers/playa.jpg' },
-    { id: 'nyc', categoria: 'general', label: 'New York', thumb: '/wallpapers/thumbs/nyc.jpg', url: '/wallpapers/nyc.jpg' },
-    { id: 'tokyo', categoria: 'general', label: 'Tokyo', thumb: '/wallpapers/thumbs/tokyo.jpg', url: '/wallpapers/tokyo.jpg' },
-    { id: 'paris', categoria: 'general', label: 'Paris', thumb: '/wallpapers/paris.jpg?v=3', url: '/wallpapers/paris.jpg?v=3' },
-    { id: 'dubai', categoria: 'general', label: 'Dubai', thumb: '/wallpapers/thumbs/dubai.jpg', url: '/wallpapers/dubai.jpg' },
-    { id: 'noche', categoria: 'general', label: 'Noche', thumb: '/wallpapers/thumbs/noche.jpg', url: '/wallpapers/noche.jpg' },
-    { id: 'bariloche', categoria: 'general', label: 'Bariloche', thumb: '/wallpapers/thumbs/bariloche.jpg', url: '/wallpapers/bariloche.jpg' },
-    { id: 'iguazu', categoria: 'general', label: 'Cataratas del Iguazú', thumb: '/wallpapers/thumbs/iguazu.jpg', url: '/wallpapers/iguazu.jpg' },
-    { id: 'patagonia', categoria: 'general', label: 'Patagonia', thumb: '/wallpapers/thumbs/patagonia.jpg', url: '/wallpapers/patagonia.jpg' },
+  // Fetch wallpapers from backend API
+  useEffect(() => {
+    let isMounted = true;
+    const fetchWallpapers = async () => {
+      try {
+        const { data } = await api.wallpapers.getGrouped();
+        if (isMounted && data && Array.isArray(data) && data.length > 0) {
+          setBackendWallpaperGroups(data);
+          if (data[0] && data[0].id) {
+            setCategoriaFondo(prev => (prev === 'general' ? String(data[0].id) : prev));
+          }
+        }
+      } catch (err) {
+        console.error('Error al cargar wallpapers desde el backend:', err);
+      }
+    };
+    fetchWallpapers();
+    return () => { isMounted = false; };
+  }, []);
 
-    // FONDOS DE LA PROVINCIA DE BUENOS AIRES
-    { id: 'buenosaires', categoria: 'pba', label: 'Buenos Aires', thumb: '/wallpapers/thumbs/buenosaires.jpg', url: '/wallpapers/buenosaires.jpg' },
-    { id: 'mardelplata', categoria: 'pba', label: 'Mar del Plata', thumb: '/wallpapers/thumbs/mardelplata.jpg', url: '/wallpapers/mardelplata.jpg' },
+  const WALLPAPERS = useMemo(() => {
+    const list = [
+      { id: 'none', categoria: 'all', group_id: 'all', label: 'Sin fondo', thumb: null, url: null }
+    ];
 
-    // FONDOS ABSTRACTOS
-    { id: 'abstract_2', categoria: 'abstract', label: 'Esfera Violeta', thumb: '/wallpapers/thumbs/milad-fakurian-PjG_SXDkpwQ-unsplash.jpg', url: '/wallpapers/milad-fakurian-PjG_SXDkpwQ-unsplash.jpg' },
-    { id: 'abstract_4', categoria: 'abstract', label: 'Burbujas Pastel', thumb: '/wallpapers/thumbs/pawel-czerwinski-ERcQ81KaX9g-unsplash.jpg', url: '/wallpapers/pawel-czerwinski-ERcQ81KaX9g-unsplash.jpg' },
-    { id: 'abstract_5', categoria: 'abstract', label: 'Espiral de Color', thumb: '/wallpapers/thumbs/pawel-czerwinski-PvgqqicSLvA-unsplash.jpg', url: '/wallpapers/pawel-czerwinski-PvgqqicSLvA-unsplash.jpg' },
-    { id: 'abstract_6', categoria: 'abstract', label: 'Líneas Abiertas', thumb: '/wallpapers/thumbs/pawel-czerwinski-YAtspJ-HV2E-unsplash.jpg', url: '/wallpapers/pawel-czerwinski-YAtspJ-HV2E-unsplash.jpg' },
-    { id: 'abstract_7', categoria: 'abstract', label: 'Fuego Líquido', thumb: '/wallpapers/thumbs/rene-bohmer-YeUVDKZWSZ4-unsplash.jpg', url: '/wallpapers/rene-bohmer-YeUVDKZWSZ4-unsplash.jpg' },
-    { id: 'abstract_8', categoria: 'abstract', label: 'Océano Digital', thumb: '/wallpapers/thumbs/richard-horvath-_nWaeTF6qo0-unsplash.jpg', url: '/wallpapers/richard-horvath-_nWaeTF6qo0-unsplash.jpg' },
-    { id: 'abstract_9', categoria: 'abstract', label: 'Nebulosa Azul', thumb: '/wallpapers/thumbs/sean-sinclair-C_NJKfnTR5A-unsplash.jpg', url: '/wallpapers/sean-sinclair-C_NJKfnTR5A-unsplash.jpg' },
-    { id: 'abstract_10', categoria: 'abstract', label: 'Dunas de Arena', thumb: '/wallpapers/thumbs/sebastian-svenson-LpbyDENbQQg-unsplash.jpg', url: '/wallpapers/sebastian-svenson-LpbyDENbQQg-unsplash.jpg' },
-    { id: 'abstract_11', categoria: 'abstract', label: 'Apertura Neón', thumb: '/wallpapers/thumbs/aperture-vintage-NrAvSjyW3D4-unsplash.jpg', url: '/wallpapers/aperture-vintage-NrAvSjyW3D4-unsplash.jpg' },
-    { id: 'abstract_12', categoria: 'abstract', label: 'Gradiente Suave', thumb: '/wallpapers/thumbs/gradient-wallpapers-PFKx7Srejek-unsplash.jpg', url: '/wallpapers/gradient-wallpapers-PFKx7Srejek-unsplash.jpg' }
-  ];
+    if (backendWallpaperGroups.length > 0) {
+      backendWallpaperGroups.forEach(group => {
+        const catId = String(group.id);
+        if (group.wallpapers && Array.isArray(group.wallpapers)) {
+          group.wallpapers.forEach(wp => {
+            list.push({
+              id: String(wp.id),
+              categoria: catId,
+              group_id: catId,
+              group_nombre: group.nombre,
+              label: wp.nombre,
+              thumb: wp.thumb_url || wp.imagen_url,
+              url: wp.imagen_url || wp.thumb_url
+            });
+          });
+        }
+      });
+      return list;
+    }
+
+    // Static fallback list if backend returns empty
+    return [
+      { id: 'none', categoria: 'general', label: 'Sin fondo', thumb: null, url: null },
+      { id: 'montanas', categoria: 'general', label: 'Montañas', thumb: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=400&q=80', url: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1920&q=80' },
+      { id: 'aurora', categoria: 'general', label: 'Aurora Boreal', thumb: 'https://images.unsplash.com/photo-1531366936337-7c912a4589a7?auto=format&fit=crop&w=400&q=80', url: 'https://images.unsplash.com/photo-1531366936337-7c912a4589a7?auto=format&fit=crop&w=1920&q=80' },
+      { id: 'bosque', categoria: 'general', label: 'Bosque', thumb: 'https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=400&q=80', url: 'https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=1920&q=80' },
+      { id: 'desierto', categoria: 'general', label: 'Desierto', thumb: 'https://images.unsplash.com/photo-1509316975850-ff9c5deb0cd9?auto=format&fit=crop&w=400&q=80', url: 'https://images.unsplash.com/photo-1509316975850-ff9c5deb0cd9?auto=format&fit=crop&w=1920&q=80' },
+      { id: 'buenosaires', categoria: 'pba', label: 'Buenos Aires', thumb: 'https://images.unsplash.com/photo-1612294037637-ec328d0e075e?auto=format&fit=crop&w=400&q=80', url: 'https://images.unsplash.com/photo-1612294037637-ec328d0e075e?auto=format&fit=crop&w=1920&q=80' },
+      { id: 'abstract_2', categoria: 'abstract', label: 'Esfera Violeta', thumb: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=400&q=80', url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1920&q=80' },
+    ];
+  }, [backendWallpaperGroups]);
 
 
   // Apply Theme Mode Class to HTML tag
@@ -743,7 +771,7 @@ export default function TableroKanban() {
 
   // Apply wallpaper background to body
   useEffect(() => {
-    const wp = WALLPAPERS.find(w => w.id === activeWallpaper);
+    const wp = WALLPAPERS.find(w => String(w.id) === String(activeWallpaper) || w.url === activeWallpaper);
     if (themeMode === 'wallpaper' && wp?.url) {
       document.body.style.backgroundImage = `url('${wp.url}')`;
       document.body.style.backgroundSize = 'cover';
@@ -756,7 +784,7 @@ export default function TableroKanban() {
       document.body.style.backgroundAttachment = '';
     }
     localStorage.setItem('activeWallpaper', activeWallpaper);
-  }, [themeMode, activeWallpaper]);
+  }, [themeMode, activeWallpaper, WALLPAPERS]);
 
   // Remove dynamic background injection, rely entirely on Tailwind classes on root wrappers
   useEffect(() => {
@@ -2262,47 +2290,74 @@ export default function TableroKanban() {
 
           {/* Categorías / Carpetas de Fondos */}
           <div className="flex items-center gap-2 p-1.5 bg-black/40 border border-white/10 rounded-2xl mb-5 overflow-x-auto custom-scrollbar shrink-0">
-            <button
-              type="button"
-              onClick={() => setCategoriaFondo('general')}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all duration-300 whitespace-nowrap cursor-pointer ${categoriaFondo === 'general'
-                  ? 'bg-gradient-to-r from-[#065E94] to-[#043d63] text-white shadow-lg shadow-[#065E94]/40 scale-[1.02]'
-                  : 'text-white/60 hover:text-white hover:bg-white/10'
-                }`}
-            >
-              <span className="text-base sm:text-lg">🏞️</span> Fondos
-            </button>
+            {backendWallpaperGroups.length > 0 ? (
+              backendWallpaperGroups.map(grp => {
+                const grpIdStr = String(grp.id);
+                const isActive = String(categoriaFondo) === grpIdStr;
+                return (
+                  <button
+                    key={grp.id}
+                    type="button"
+                    onClick={() => setCategoriaFondo(grpIdStr)}
+                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all duration-300 whitespace-nowrap cursor-pointer ${isActive
+                        ? 'bg-gradient-to-r from-[#065E94] to-[#043d63] text-white shadow-lg shadow-[#065E94]/40 scale-[1.02]'
+                        : 'text-white/60 hover:text-white hover:bg-white/10'
+                      }`}
+                  >
+                    {grp.icono && (grp.icono.startsWith('http') || grp.icono.startsWith('/')) ? (
+                      <img src={grp.icono} alt="" className="w-5 h-5 object-contain" />
+                    ) : (
+                      <span className="text-base sm:text-lg">{grp.icono || '🏞️'}</span>
+                    )}
+                    {grp.nombre}
+                  </button>
+                );
+              })
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setCategoriaFondo('general')}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all duration-300 whitespace-nowrap cursor-pointer ${categoriaFondo === 'general'
+                      ? 'bg-gradient-to-r from-[#065E94] to-[#043d63] text-white shadow-lg shadow-[#065E94]/40 scale-[1.02]'
+                      : 'text-white/60 hover:text-white hover:bg-white/10'
+                    }`}
+                >
+                  <span className="text-base sm:text-lg">🏞️</span> Fondos
+                </button>
 
-            <button
-              type="button"
-              onClick={() => setCategoriaFondo('pba')}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all duration-300 whitespace-nowrap cursor-pointer ${categoriaFondo === 'pba'
-                  ? 'bg-gradient-to-r from-[#065E94] to-[#043d63] text-white shadow-lg shadow-[#065E94]/40 scale-[1.02]'
-                  : 'text-white/60 hover:text-white hover:bg-white/10'
-                }`}
-            >
-              <img src="/logo-pba-blanco.png" alt="PBA" className="w-5 h-5 object-contain" /> Prov. de Buenos Aires
-            </button>
+                <button
+                  type="button"
+                  onClick={() => setCategoriaFondo('pba')}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all duration-300 whitespace-nowrap cursor-pointer ${categoriaFondo === 'pba'
+                      ? 'bg-gradient-to-r from-[#065E94] to-[#043d63] text-white shadow-lg shadow-[#065E94]/40 scale-[1.02]'
+                      : 'text-white/60 hover:text-white hover:bg-white/10'
+                    }`}
+                >
+                  <img src="/logo-pba-blanco.png" alt="PBA" className="w-5 h-5 object-contain" /> Prov. de Buenos Aires
+                </button>
 
-            <button
-              type="button"
-              onClick={() => setCategoriaFondo('abstract')}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all duration-300 whitespace-nowrap cursor-pointer ${categoriaFondo === 'abstract'
-                  ? 'bg-gradient-to-r from-[#065E94] to-[#043d63] text-white shadow-lg shadow-[#065E94]/40 scale-[1.02]'
-                  : 'text-white/60 hover:text-white hover:bg-white/10'
-                }`}
-            >
-              <span className="text-base sm:text-lg">🎨</span> Fondos Abstractos
-            </button>
+                <button
+                  type="button"
+                  onClick={() => setCategoriaFondo('abstract')}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all duration-300 whitespace-nowrap cursor-pointer ${categoriaFondo === 'abstract'
+                      ? 'bg-gradient-to-r from-[#065E94] to-[#043d63] text-white shadow-lg shadow-[#065E94]/40 scale-[1.02]'
+                      : 'text-white/60 hover:text-white hover:bg-white/10'
+                    }`}
+                >
+                  <span className="text-base sm:text-lg">🎨</span> Fondos Abstractos
+                </button>
+              </>
+            )}
           </div>
 
           {/* Grid ampliado y espacioso */}
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5 flex-1 min-h-0 overflow-y-auto p-2 sm:p-4 custom-scrollbar">
-            {WALLPAPERS.filter(wp => wp.categoria === categoriaFondo || (categoriaFondo !== 'general' && wp.id === 'none')).map(wp => (
+            {WALLPAPERS.filter(wp => String(wp.categoria) === String(categoriaFondo) || wp.id === 'none').map(wp => (
               <button
                 key={wp.id}
                 onClick={() => { setActiveWallpaper(wp.id); }}
-                className={`relative rounded-2xl overflow-hidden h-44 sm:h-40 w-full shrink-0 block group transition-all duration-300 ${activeWallpaper === wp.id
+                className={`relative rounded-2xl overflow-hidden h-44 sm:h-40 w-full shrink-0 block group transition-all duration-300 ${String(activeWallpaper) === String(wp.id)
                   ? 'ring-4 ring-[#065E94] ring-offset-4 ring-offset-[#0a1628] scale-[1.02]'
                   : 'hover:scale-[1.03] hover:ring-2 hover:ring-[#065E94]/40'
                   }`}
@@ -2435,20 +2490,20 @@ export default function TableroKanban() {
               </svg>
             </button>
 
-            {/* Formulario Izquierda (Añadir Miembro) */}
+            {/* Formulario Izquierda (Añadir Miembro - Solo Admins) */}
             {misPermisos.gestionar_usuarios && (
               <div className="flex-[0.8] p-4 sm:p-6 md:p-9 flex flex-col bg-slate-50/50 dark:bg-black/10 border-b md:border-b-0 md:border-r border-slate-200/60 dark:border-[var(--border-accent)]/50 pr-12 md:pr-6">
                 <div className="max-w-xs mx-auto w-full">
                   <h2 className="text-lg sm:text-xl md:text-2xl font-black text-slate-800 dark:text-white mb-1 sm:mb-2 tracking-tight">Añadir Miembro</h2>
-                  <p className="text-[11px] sm:text-xs font-semibold text-slate-400 dark:text-neutral-400 mb-3 sm:mb-6 leading-normal">Agregá nuevos usuarios para que puedan ver, comentar o editar tareas en este tablero.</p>
+                  <p className="text-[11px] sm:text-xs font-semibold text-slate-400 dark:text-neutral-400 mb-3 sm:mb-6 leading-normal">Agregá nuevos usuarios para que puedan ver o editar tareas en este tablero.</p>
 
-                  <form onSubmit={handleAnadirMiembro} className="space-y-3 sm:space-y-6">
-                    <div className="bg-white dark:bg-[var(--bg-secondary)]/50 p-3 sm:p-5 rounded-xl sm:rounded-2xl border border-slate-200/50 dark:border-[var(--border-accent)]/50 shadow-sm">
-                      <label className="block text-[10px] font-extrabold text-slate-400 dark:text-neutral-500 uppercase tracking-widest mb-1.5 sm:mb-3">Seleccionar Usuario</label>
+                  <form onSubmit={handleAnadirMiembro} className="space-y-3 sm:space-y-4">
+                    <div className="bg-white dark:bg-[var(--bg-secondary)]/50 p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-slate-200/50 dark:border-[var(--border-accent)]/50 shadow-sm">
+                      <label className="block text-[10px] font-extrabold text-slate-400 dark:text-neutral-500 uppercase tracking-widest mb-1.5 sm:mb-2">Seleccionar Usuario</label>
                       <select
                         value={usuarioAAñadir}
                         onChange={e => setUsuarioAAñadir(e.target.value)}
-                        className="w-full bg-slate-50 dark:bg-[var(--bg-main)] border border-slate-200/60 dark:border-[var(--border-accent)] dark:text-white rounded-xl p-2.5 sm:p-3.5 text-xs sm:text-sm focus:ring-2 focus:ring-blue-500/50 outline-none transition-all shadow-inner cursor-pointer"
+                        className="w-full bg-slate-50 dark:bg-[var(--bg-main)] border border-slate-200/60 dark:border-[var(--border-accent)] dark:text-white rounded-xl p-2.5 sm:p-3 text-xs sm:text-sm focus:ring-2 focus:ring-blue-500/50 outline-none transition-all shadow-inner cursor-pointer"
                         required
                       >
                         <option value="">Selecciona un usuario...</option>
@@ -2461,7 +2516,7 @@ export default function TableroKanban() {
                     <button
                       type="submit"
                       disabled={!usuarioAAñadir}
-                      className="w-full py-2.5 sm:py-3.5 px-4 sm:px-6 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold text-white bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 shadow-lg shadow-emerald-600/30 dark:shadow-emerald-900/40 transition-all hover:-translate-y-0.5 disabled:opacity-40 disabled:hover:translate-y-0 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer"
+                      className="w-full py-2.5 sm:py-3.5 px-4 sm:px-6 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold text-white bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 shadow-lg shadow-emerald-600/30 dark:shadow-emerald-900/40 transition-all hover:-translate-y-0.5 disabled:opacity-40 disabled:hover:translate-y-0 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer mt-2"
                     >
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" /></svg>
                       Añadir al Tablero
@@ -2472,7 +2527,7 @@ export default function TableroKanban() {
             )}
 
             {/* Lista Derecha (Miembros del Tablero) */}
-            <div className={`flex flex-col flex-[1.2] p-4 sm:p-6 md:p-9 overflow-hidden`}>
+            <div className={`flex flex-col ${misPermisos.gestionar_usuarios ? 'flex-[1.2]' : 'w-full max-w-2xl mx-auto'} p-4 sm:p-6 md:p-9 overflow-hidden`}>
               <div className="flex items-center justify-between mb-3 sm:mb-6 gap-2 pr-8 md:pr-0">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2.5 flex-wrap">
@@ -2481,7 +2536,11 @@ export default function TableroKanban() {
                       {usuarios.filter(u => u.rol_en_tablero !== null).length}
                     </span>
                   </div>
-                  <p className="text-[11px] sm:text-xs font-semibold text-slate-400 dark:text-neutral-500 mt-0.5 line-clamp-1">Usuarios con acceso y sus roles correspondientes.</p>
+                  <p className="text-[11px] sm:text-xs font-semibold text-slate-400 dark:text-neutral-500 mt-0.5 line-clamp-1">
+                    {misPermisos.gestionar_usuarios
+                      ? 'Usuarios con acceso y gestión de sus roles/permisos.'
+                      : 'Lista de usuarios con acceso a este tablero.'}
+                  </p>
                 </div>
               </div>
 
@@ -2492,37 +2551,63 @@ export default function TableroKanban() {
                     <p className="text-sm font-bold text-slate-500">Sin miembros</p>
                   </div>
                 ) : (
-                  usuarios.filter(u => u.rol_en_tablero !== null).map(u => (
-                    <div key={u.id} className="group bg-slate-50/50 dark:bg-[var(--bg-secondary)] border border-slate-200/50 dark:border-[var(--border-accent)]/40 p-2.5 sm:p-4 rounded-xl sm:rounded-2xl flex flex-col hover:bg-white dark:hover:bg-white/[0.02] hover:shadow-md dark:hover:shadow-none hover:border-slate-300/60 dark:hover:border-[var(--border-accent)] transition-all duration-300">
+                  usuarios.filter(u => u.rol_en_tablero !== null).map(u => {
+                    const isSelf = String(u.id) === String(user?.id);
+                    const uRolTablero = u.rol_en_tablero || 'Miembro';
+                    const isAdminBoard = uRolTablero.toLowerCase() === 'administrador';
 
-                      {/* Fila principal */}
-                      <div className="flex items-center gap-2.5 sm:gap-4 w-full">
-                        {/* Avatar Inicial */}
-                        <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-[#065E94] to-blue-500 text-white font-extrabold flex items-center justify-center text-[11px] sm:text-xs shadow-md border border-white/20 shrink-0">
-                          {getInicial(u.nombre)}
-                        </div>
+                    return (
+                      <div key={u.id} className="group bg-slate-50/50 dark:bg-[var(--bg-secondary)] border border-slate-200/50 dark:border-[var(--border-accent)]/40 p-2.5 sm:p-4 rounded-xl sm:rounded-2xl flex flex-col hover:bg-white dark:hover:bg-white/[0.02] hover:shadow-md dark:hover:shadow-none hover:border-slate-300/60 dark:hover:border-[var(--border-accent)] transition-all duration-300">
 
-                        {/* Info de Usuario */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2.5">
-                            <h4 className="font-bold text-slate-800 dark:text-white text-[13px] sm:text-[14px] truncate" title={u.nombre}>{u.nombre}</h4>
+                        {/* Fila principal */}
+                        <div className="flex items-center gap-2.5 sm:gap-4 w-full">
+                          {/* Avatar Inicial */}
+                          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-[#065E94] to-blue-500 text-white font-extrabold flex items-center justify-center text-[11px] sm:text-xs shadow-md border border-white/20 shrink-0">
+                            {getInicial(u.nombre)}
                           </div>
 
-                          <p className="text-[11px] sm:text-xs text-slate-500 dark:text-neutral-400 font-medium truncate mt-0.2">{u.email}</p>
-                          <p className="text-[9px] sm:text-[10px] text-slate-400 dark:text-slate-500 font-semibold uppercase tracking-wider mt-0.2 truncate">
-                            {u.dependencia || 'Sin dep'}
-                          </p>
-                          <div className="flex flex-wrap gap-1 mt-1">
-                            {(u.roles_detalle || []).map(rol => (
-                              <span key={rol.id} className="text-[9px] uppercase font-bold text-[#065E94] dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 px-1.5 py-0.5 rounded-full">{rol.nombre}</span>
-                            ))}
-                          </div>
-                        </div>
+                          {/* Info de Usuario */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                              <h4 className="font-bold text-slate-800 dark:text-white text-[13px] sm:text-[14px] truncate" title={u.nombre}>{u.nombre}</h4>
 
-                        {/* Controles del Miembro */}
-                        <div className="flex items-center gap-1 shrink-0">
-                          {misPermisos.gestionar_usuarios && (
-                            <>
+                              {/* Badge de Rol en Tablero */}
+                              {isAdminBoard ? (
+                                <span className="px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-extrabold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 shrink-0">
+                                  {isSelf ? 'Tú (Admin Tablero)' : 'Admin Tablero'}
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-semibold bg-slate-200/70 dark:bg-slate-800 text-slate-600 dark:text-slate-400 shrink-0">
+                                  {isSelf ? 'Tú (Miembro)' : 'Miembro'}
+                                </span>
+                              )}
+                            </div>
+
+                            <p className="text-[11px] sm:text-xs text-slate-500 dark:text-neutral-400 font-medium truncate mt-0.2">{u.email}</p>
+                            <p className="text-[9px] sm:text-[10px] text-slate-400 dark:text-slate-500 font-semibold uppercase tracking-wider mt-0.2 truncate">
+                              {u.dependencia || 'Sin dep'}
+                              {u.piso ? ` • Piso ${u.piso}` : ''}
+                              {(u.roles_detalle && u.roles_detalle.length > 0)
+                                ? ` • ${u.roles_detalle.map(r => r.nombre).join(', ')}`
+                                : (u.rol ? ` • ${u.rol}` : '')}
+                            </p>
+                          </div>
+
+                          {/* Controles del Miembro (Solo si el usuario actual es Admin y NO es su propio usuario) */}
+                          {misPermisos.gestionar_usuarios && !isSelf && (
+                            <div className="flex items-center gap-2 shrink-0">
+                              {/* Selector de Rol en Tablero (Administrador vs Miembro) */}
+                              <select
+                                value={uRolTablero}
+                                onChange={(e) => handleEditarRolUsuario(u.id, e.target.value)}
+                                className="bg-white dark:bg-[var(--bg-main)]/80 border border-slate-200/80 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-[10px] sm:text-xs font-bold rounded-lg px-2 py-1 outline-none cursor-pointer focus:ring-2 focus:ring-blue-500/40 shadow-sm"
+                                title="Cambiar rol en este tablero"
+                              >
+                                <option value="Miembro">Miembro</option>
+                                <option value="Administrador">Admin Tablero</option>
+                              </select>
+
+                              {/* Botón Permisos (Granulares) */}
                               <button
                                 onClick={(e) => { e.stopPropagation(); setExpandedUserPerms(expandedUserPerms === u.id ? null : u.id); }}
                                 className={`text-[9px] sm:text-[10px] uppercase font-bold px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full transition-all border shadow-sm ${expandedUserPerms === u.id
@@ -2533,6 +2618,7 @@ export default function TableroKanban() {
                                 {expandedUserPerms === u.id ? 'Ocultar' : 'Permisos'}
                               </button>
 
+                              {/* Botón Eliminar del Tablero */}
                               <button
                                 onClick={(e) => { e.stopPropagation(); e.preventDefault(); setUsuarioAEliminar(u); }}
                                 className="text-slate-400 hover:text-red-500 dark:hover:text-red-400 p-1.5 sm:p-2 bg-transparent hover:bg-red-50 dark:hover:bg-red-500/10 rounded-xl transition-all cursor-pointer opacity-100 sm:opacity-0 group-hover:opacity-100 focus:opacity-100"
@@ -2540,55 +2626,55 @@ export default function TableroKanban() {
                               >
                                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                               </button>
-                            </>
+                            </div>
                           )}
                         </div>
-                      </div>
 
-                      {/* Permisos Personalizados (Acordeón) */}
-                      {misPermisos.gestionar_usuarios && expandedUserPerms === u.id && (
-                        <div className="mt-4 pt-4 border-t border-slate-200/60 dark:border-[var(--border-accent)]/30 w-full animate-in fade-in slide-in-from-top-2 duration-200">
-                          <div className="flex items-center justify-between mb-4">
-                            <p className="text-[10px] font-black text-slate-400 dark:text-neutral-500 uppercase tracking-widest">Permisos del Miembro</p>
+                        {/* Permisos Personalizados (Acordeón - Solo para otros usuarios si se abre) */}
+                        {misPermisos.gestionar_usuarios && !isSelf && expandedUserPerms === u.id && (
+                          <div className="mt-4 pt-4 border-t border-slate-200/60 dark:border-[var(--border-accent)]/30 w-full animate-in fade-in slide-in-from-top-2 duration-200">
+                            <div className="flex items-center justify-between mb-4">
+                              <p className="text-[10px] font-black text-slate-400 dark:text-neutral-500 uppercase tracking-widest">Permisos del Miembro</p>
+                            </div>
+                            <div className="grid grid-cols-2 gap-y-3.5 gap-x-6 bg-white/50 dark:bg-black/10 p-4 rounded-xl border border-slate-200/40 dark:border-[var(--border-accent)]/20">
+                              {[
+                                { key: 'ver_tablero', label: 'Ver Tablero' },
+                                { key: 'crear_tickets', label: 'Crear Tickets' },
+                                { key: 'editar_tickets', label: 'Editar Tickets' },
+                                { key: 'mover_tarjetas', label: 'Mover Tarjetas' },
+                                { key: 'eliminar_tickets', label: 'Eliminar Tickets' },
+                                { key: 'gestionar_comentarios', label: 'Comentar' },
+                                { key: 'ver_estadisticas', label: 'Estadísticas' },
+                                { key: 'gestionar_usuarios', label: 'Gestión Usuarios' }
+                              ].map(perm => {
+                                const rawPerms = u?.permisos_tablero || {};
+                                const hasPerm = !!rawPerms[perm.key];
+                                return (
+                                  <label key={perm.key} className="flex items-center gap-3 cursor-pointer select-none group/sw py-1 px-1.5 rounded-lg hover:bg-slate-100/50 dark:hover:bg-white/5 transition-all">
+                                    <button
+                                      type="button"
+                                      role="switch"
+                                      aria-checked={hasPerm}
+                                      onClick={() => handleGuardarPermisos(u.id, { ...rawPerms, [perm.key]: !hasPerm })}
+                                      className={`${hasPerm ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-700'
+                                        } relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none shadow-inner`}
+                                    >
+                                      <span
+                                        aria-hidden="true"
+                                        className={`${hasPerm ? 'translate-x-4' : 'translate-x-0'}
+                                          pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-300 ease-in-out`}
+                                      />
+                                    </button>
+                                    <span className="text-xs font-bold text-slate-600 dark:text-neutral-300 group-hover/sw:text-indigo-600 dark:group-hover/sw:text-indigo-400 transition-colors leading-tight">{perm.label}</span>
+                                  </label>
+                                );
+                              })}
+                            </div>
                           </div>
-                          <div className="grid grid-cols-2 gap-y-3.5 gap-x-6 bg-white/50 dark:bg-black/10 p-4 rounded-xl border border-slate-200/40 dark:border-[var(--border-accent)]/20">
-                            {[
-                              { key: 'ver_tablero', label: 'Ver Tablero' },
-                              { key: 'crear_tickets', label: 'Crear Tickets' },
-                              { key: 'editar_tickets', label: 'Editar Tickets' },
-                              { key: 'mover_tarjetas', label: 'Mover Tarjetas' },
-                              { key: 'eliminar_tickets', label: 'Eliminar Tickets' },
-                              { key: 'gestionar_comentarios', label: 'Comentar' },
-                              { key: 'ver_estadisticas', label: 'Estadísticas' },
-                              { key: 'gestionar_usuarios', label: 'Gestión Usuarios' }
-                            ].map(perm => {
-                              const rawPerms = u?.permisos_tablero || {};
-                              const hasPerm = !!rawPerms[perm.key];
-                              return (
-                                <label key={perm.key} className="flex items-center gap-3 cursor-pointer select-none group/sw py-1 px-1.5 rounded-lg hover:bg-slate-100/50 dark:hover:bg-white/5 transition-all">
-                                  <button
-                                    type="button"
-                                    role="switch"
-                                    aria-checked={hasPerm}
-                                    onClick={() => handleGuardarPermisos(u.id, { ...rawPerms, [perm.key]: !hasPerm })}
-                                    className={`${hasPerm ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-700'
-                                      } relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none shadow-inner`}
-                                  >
-                                    <span
-                                      aria-hidden="true"
-                                      className={`${hasPerm ? 'translate-x-4' : 'translate-x-0'}
-                                        pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-300 ease-in-out`}
-                                    />
-                                  </button>
-                                  <span className="text-xs font-bold text-slate-600 dark:text-neutral-300 group-hover/sw:text-indigo-600 dark:group-hover/sw:text-indigo-400 transition-colors leading-tight">{perm.label}</span>
-                                </label>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ))
+                        )}
+                      </div>
+                    );
+                  })
                 )}
               </div>
             </div>

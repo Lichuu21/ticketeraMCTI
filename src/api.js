@@ -421,6 +421,27 @@ export const notificaciones = {
   },
 };
 
+// ─── WALLPAPERS ──────────────────────────────────────────
+export const wallpapers = {
+  async getGrouped() {
+    try {
+      const data = await apiRequest('GET', '/wallpapers-grouped/');
+      return { data, error: null };
+    } catch (e) {
+      return formatError(e);
+    }
+  },
+
+  async getAll() {
+    try {
+      const data = await apiRequest('GET', '/wallpapers/?activo=true');
+      return { data, error: null };
+    } catch (e) {
+      return formatError(e);
+    }
+  },
+};
+
 // ─── STORAGE ─────────────────────────────────────────────
 export const storage = {
   from(bucket) {
@@ -533,5 +554,6 @@ export default {
   tickets,
   comentarios,
   notificaciones,
+  wallpapers,
   storage,
 };

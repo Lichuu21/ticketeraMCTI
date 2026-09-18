@@ -528,8 +528,22 @@ def remove_member_view(request):
     usuario_id = request.data.get('usuario_id')
     if not all([tablero_id, usuario_id]):
         return Response({'error': 'tablero_id y usuario_id son requeridos'}, status=400)
+
+    if not check_permiso(request.user, tablero_id, 'gestionar_usuarios'):
+        return Response({'error': 'No tienes permisos para gestionar miembros en este tablero'}, status=403)
+
+    try:
+        tablero = Tablero.objects.get(pk=tablero_id)
+        target_user = Usuario.objects.get(pk=usuario_id)
+    except (Tablero.DoesNotExist, Usuario.DoesNotExist):
+        return Response({'error': 'Tablero o usuario no encontrado'}, status=404)
+
+    if tablero.creador_id == target_user.id or target_user.is_superuser or target_user.is_staff or target_user.rol == 'Administrador':
+        return Response({'error': 'No se puede eliminar al creador del tablero o administrador del sistema'}, status=403)
+
     deleted, _ = TableroUsuario.objects.filter(tablero_id=tablero_id, usuario_id=usuario_id).delete()
     return Response({'deleted': deleted})
+
 
 @api_view(['POST'])
 @permission_classes([permissions.IsAuthenticated])
@@ -539,11 +553,33 @@ def update_member_role_view(request):
     rol = request.data.get('rol')
     if not all([tablero_id, usuario_id, rol]):
         return Response({'error': 'tablero_id, usuario_id y rol son requeridos'}, status=400)
+
+    if not check_permiso(request.user, tablero_id, 'gestionar_usuarios'):
+        return Response({'error': 'No tienes permisos para gestionar roles en este tablero'}, status=403)
+
+    try:
+        tablero = Tablero.objects.get(pk=tablero_id)
+        target_user = Usuario.objects.get(pk=usuario_id)
+    except (Tablero.DoesNotExist, Usuario.DoesNotExist):
+        return Response({'error': 'Tablero o usuario no encontrado'}, status=404)
+
+    if tablero.creador_id == target_user.id or target_user.is_superuser or target_user.is_staff or target_user.rol == 'Administrador':
+        return Response({'error': 'No se puede modificar el rol del creador del tablero o administrador del sistema'}, status=403)
+
+    is_requester_creator_or_global = (tablero.creador_id == request.user.id) or request.user.is_superuser or request.user.is_staff or (request.user.rol == 'Administrador')
+    try:
+        target_membership = TableroUsuario.objects.get(tablero_id=tablero_id, usuario_id=usuario_id)
+        if target_membership.rol_en_tablero == 'Administrador' and not is_requester_creator_or_global:
+            return Response({'error': 'Solo el creador del tablero o admin del sistema puede modificar el rol de un administrador'}, status=403)
+    except TableroUsuario.DoesNotExist:
+        pass
+
     obj, _ = TableroUsuario.objects.update_or_create(
         tablero_id=tablero_id, usuario_id=usuario_id,
         defaults={'rol_en_tablero': rol}
     )
     return Response({'updated': 1})
+
 
 @api_view(['POST'])
 @permission_classes([permissions.IsAuthenticated])
@@ -553,6 +589,19 @@ def update_member_permisos_view(request):
     permisos = request.data.get('permisos')
     if not all([tablero_id, usuario_id]):
         return Response({'error': 'tablero_id y usuario_id son requeridos'}, status=400)
+
+    if not check_permiso(request.user, tablero_id, 'gestionar_usuarios'):
+        return Response({'error': 'No tienes permisos para gestionar permisos en este tablero'}, status=403)
+
+    try:
+        tablero = Tablero.objects.get(pk=tablero_id)
+        target_user = Usuario.objects.get(pk=usuario_id)
+    except (Tablero.DoesNotExist, Usuario.DoesNotExist):
+        return Response({'error': 'Tablero o usuario no encontrado'}, status=404)
+
+    if tablero.creador_id == target_user.id or target_user.is_superuser or target_user.is_staff or target_user.rol == 'Administrador':
+        return Response({'error': 'No se pueden modificar los permisos del creador o admin del sistema'}, status=403)
+
     obj, _ = TableroUsuario.objects.update_or_create(
         tablero_id=tablero_id, usuario_id=usuario_id,
         defaults={'permisos': permisos}
@@ -581,7 +630,7 @@ def site_setting_view(request):
 @api_view(['GET'])
 @permission_classes([permissions.AllowAny])
 def wallpapers_grouped_view(request):
-    groups = WallpaperGroup.objects.prefetch_related('wallpapers').all()
+    groups = WallpaperGroup.objects.prefetch_related('wallpapers').order_by('orden', 'id')
     result = []
     for group in groups:
         wallpapers = group.wallpapers.filter(activo=True)
@@ -590,6 +639,7 @@ def wallpapers_grouped_view(request):
                 'id': group.id,
                 'nombre': group.nombre,
                 'icono': group.icono,
+                'orden': group.orden,
                 'wallpapers': WallpaperThumbSerializer(wallpapers, many=True).data
             })
     return Response(result)
