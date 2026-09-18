@@ -440,6 +440,7 @@ La autenticación usa cookies de sesión (`credentials: 'include'`).
 | `api.tickets.delete(id)` | `DELETE /tickets/{id}/` |
 | `api.tickets.renameColumn(t,old,new)` | `POST /tickets/rename-column/` |
 | `api.tickets.moveOrphanTickets(t,ids,e)` | `POST /tickets/move-orphan/` |
+| `api.tickets.bulkImport(tableroId, tickets)` | `POST /tickets/bulk-import/` |
 | `api.comentarios.getByTicket(id)` | `GET /comentarios/?ticket_id=X` |
 | `api.comentarios.create(data)` | `POST /comentarios/` |
 | `api.comentarios.update(id, data)` | `PATCH /comentarios/{id}/` |

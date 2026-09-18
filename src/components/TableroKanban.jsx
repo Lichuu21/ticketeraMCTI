@@ -143,7 +143,7 @@ const TicketCard = React.memo(({ ticket, index, onClick, isReadOnly, allTickets,
           {...provided.draggableProps}
           {...provided.dragHandleProps}
           onClick={() => onClick(ticket)}
-          className={`${!snapshot.isDragging ? 'glass-card' : ''} bg-white/90 dark:bg-[var(--bg-card)] backdrop-blur-md dark:backdrop-blur-none p-3.5 md:p-4 rounded-xl md:rounded-2xl border border-white dark:border-[var(--border-accent)] cursor-pointer group flex flex-col justify-between h-[215px] ${snapshot.isDragging ? 'shadow-2xl ring-2 ring-[#065E94]/30 dark:ring-[var(--border-accent)] rotate-3 scale-[1.03] dark:bg-[var(--bg-hover)] opacity-100 z-[1000]' : 'shadow-sm dark:shadow-none transition-all duration-300 hover:shadow-[0_8px_25px_-5px_rgba(6,94,148,0.15)] hover:border-slate-200 dark:hover:border-[var(--border-accent)] dark:hover:bg-[var(--bg-hover)] hover:-translate-y-1'
+          className={`${!snapshot.isDragging ? 'glass-card' : ''} bg-white dark:bg-[var(--bg-card)] backdrop-blur-md dark:backdrop-blur-none p-3.5 md:p-4 rounded-xl md:rounded-2xl border border-slate-200/80 dark:border-[var(--border-accent)] cursor-pointer group flex flex-col justify-between h-[215px] ${snapshot.isDragging ? 'shadow-2xl ring-2 ring-[#065E94]/30 dark:ring-[var(--border-accent)] rotate-3 scale-[1.03] dark:bg-[var(--bg-hover)] opacity-100 z-[1000]' : 'shadow-sm dark:shadow-none transition-all duration-300 hover:shadow-[0_8px_25px_-5px_rgba(6,94,148,0.18)] hover:border-[#065E94]/40 hover:bg-white dark:hover:border-[var(--border-accent)] dark:hover:bg-[var(--bg-hover)] hover:-translate-y-1'
             }`}
         >
           <div className="flex-1 flex flex-col justify-between min-h-0">
@@ -155,10 +155,10 @@ const TicketCard = React.memo(({ ticket, index, onClick, isReadOnly, allTickets,
                     {ticket.prioridad}
                   </span>
                   {ticket.prioridad !== 'Nota' && numeroTicket && (
-                    <span className="text-xs font-black text-slate-400 dark:text-neutral-500">#{numeroTicket}</span>
+                    <span className="text-xs font-black text-slate-500 dark:text-neutral-400">#{numeroTicket}</span>
                   )}
                 </div>
-                {ticket.area && <span className="text-[11px] font-semibold text-slate-400 group-hover:text-[#065E94] transition-colors truncate max-w-[110px] text-right">{ticket.area}</span>}
+                {ticket.area && <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 group-hover:text-[#065E94] dark:group-hover:text-blue-400 transition-colors truncate max-w-[110px] text-right">{ticket.area}</span>}
               </div>
 
               {/* Título: Altura uniforme fija de 2 líneas max */}
@@ -171,23 +171,23 @@ const TicketCard = React.memo(({ ticket, index, onClick, isReadOnly, allTickets,
 
             {/* Solicitante / Descripción Nota */}
             {(ticket.solicitante || ticket.seccion_solicitante) ? (
-              <div className="glass-solicitor flex items-center gap-2 mb-2 bg-slate-50/80 dark:bg-white/5 border border-slate-100 dark:border-[var(--border-accent)] py-1.5 px-2.5 rounded-lg h-[38px] shrink-0">
+              <div className="glass-solicitor flex items-center gap-2 mb-2 bg-slate-100/80 dark:bg-white/5 border border-slate-200/60 dark:border-[var(--border-accent)] py-1.5 px-2.5 rounded-lg h-[38px] shrink-0">
                 <div className="flex items-center justify-center w-6 h-6 rounded-full bg-indigo-100 dark:bg-white/10 shadow-sm shrink-0 border border-white/10 dark:border-white/5">
-                  <svg className="w-3 h-3 text-indigo-500 dark:text-cyan-100 drop-shadow-sm" viewBox="0 0 24 24" fill="currentColor"><path fillRule="evenodd" d="M7.5 6a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM3.751 20.105a8.25 8.25 0 0116.498 0 .75.75 0 01-.437.695A18.683 18.683 0 0112 22.5c-2.786 0-5.433-.608-7.812-1.7a.75.75 0 01-.437-.695z" clipRule="evenodd" /></svg>
+                  <svg className="w-3 h-3 text-indigo-600 dark:text-cyan-100 drop-shadow-sm" viewBox="0 0 24 24" fill="currentColor"><path fillRule="evenodd" d="M7.5 6a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM3.751 20.105a8.25 8.25 0 0116.498 0 .75.75 0 01-.437.695A18.683 18.683 0 0112 22.5c-2.786 0-5.433-.608-7.812-1.7a.75.75 0 01-.437-.695z" clipRule="evenodd" /></svg>
                 </div>
                 <div className="flex flex-col min-w-0 justify-center">
-                  <span className="text-[11px] font-extrabold text-slate-700 dark:text-white truncate leading-tight">
+                  <span className="text-[11px] font-extrabold text-slate-800 dark:text-white truncate leading-tight">
                     {ticket.solicitante || 'Desconocido'}
                   </span>
                   {ticket.seccion_solicitante && (
-                    <span className="text-[9px] font-bold text-slate-400 dark:text-cyan-100/70 truncate leading-none uppercase tracking-wider mt-[1px]">
+                    <span className="text-[9px] font-bold text-slate-500 dark:text-cyan-100/70 truncate leading-none uppercase tracking-wider mt-[1px]">
                       {ticket.seccion_solicitante}
                     </span>
                   )}
                 </div>
               </div>
             ) : (ticket.prioridad === 'Nota' && ticket.descripcion) ? (
-              <div className="glass-solicitor flex items-center gap-2 mb-2 bg-slate-50/80 dark:bg-white/5 border border-slate-100 dark:border-[var(--border-accent)] py-1.5 px-2.5 rounded-lg text-xs text-slate-600 dark:text-neutral-300 h-[38px] shrink-0 font-medium">
+              <div className="glass-solicitor flex items-center gap-2 mb-2 bg-slate-100/80 dark:bg-white/5 border border-slate-200/60 dark:border-[var(--border-accent)] py-1.5 px-2.5 rounded-lg text-xs text-slate-700 dark:text-neutral-300 h-[38px] shrink-0 font-medium">
                 <span className="truncate">{ticket.descripcion}</span>
               </div>
             ) : (
@@ -196,9 +196,9 @@ const TicketCard = React.memo(({ ticket, index, onClick, isReadOnly, allTickets,
           </div>
 
           {/* Footer: Fecha, Subtareas y Asignados */}
-          <div className="flex justify-between items-center pt-2.5 border-t border-slate-100/80 dark:border-white/5 h-[38px] shrink-0">
+          <div className="flex justify-between items-center pt-2.5 border-t border-slate-100 dark:border-white/5 h-[38px] shrink-0">
             <div className="flex items-center gap-1.5">
-              <span className="text-[11px] text-slate-400 dark:text-slate-400 font-semibold tracking-wide">
+              <span className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold tracking-wide">
                 {new Date(ticket.fecha_creacion).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
               </span>
               {Array.isArray(ticket.checklist) && ticket.checklist.length > 0 && (() => {
@@ -2061,7 +2061,7 @@ export default function TableroKanban() {
           </div>
         )}
 
-        {mostrarEstadisticas ? (
+        {mostrarEstadisticas && misPermisos.ver_estadisticas ? (
           <div className="flex-1 overflow-hidden">
             <EstadisticasPanel tickets={tickets} usuarios={usuarios} themeMode={themeMode} user={user} />
           </div>
@@ -2555,6 +2555,14 @@ export default function TableroKanban() {
                     const isSelf = String(u.id) === String(user?.id);
                     const uRolTablero = u.rol_en_tablero || 'Miembro';
                     const isAdminBoard = uRolTablero.toLowerCase() === 'administrador';
+                    // No se pueden modificar ni eliminar al creador del tablero
+                    const isCreatorOfBoard = tableroActual && (
+                      String(tableroActual.creador) === String(u.id) ||
+                      String(tableroActual.creador_id) === String(u.id) ||
+                      (typeof tableroActual.creador === 'object' && String(tableroActual.creador?.id) === String(u.id))
+                    );
+                    // Bloquear acciones si es el mismo usuario, o si es el creador del tablero
+                    const isProtected = isSelf || isCreatorOfBoard;
 
                     return (
                       <div key={u.id} className="group bg-slate-50/50 dark:bg-[var(--bg-secondary)] border border-slate-200/50 dark:border-[var(--border-accent)]/40 p-2.5 sm:p-4 rounded-xl sm:rounded-2xl flex flex-col hover:bg-white dark:hover:bg-white/[0.02] hover:shadow-md dark:hover:shadow-none hover:border-slate-300/60 dark:hover:border-[var(--border-accent)] transition-all duration-300">
@@ -2572,7 +2580,11 @@ export default function TableroKanban() {
                               <h4 className="font-bold text-slate-800 dark:text-white text-[13px] sm:text-[14px] truncate" title={u.nombre}>{u.nombre}</h4>
 
                               {/* Badge de Rol en Tablero */}
-                              {isAdminBoard ? (
+                              {isCreatorOfBoard ? (
+                                <span className="px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-extrabold bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-500/20 shrink-0">
+                                  {isSelf ? 'Tú (Creador)' : 'Creador'}
+                                </span>
+                              ) : isAdminBoard ? (
                                 <span className="px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-extrabold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 shrink-0">
                                   {isSelf ? 'Tú (Admin Tablero)' : 'Admin Tablero'}
                                 </span>
@@ -2593,8 +2605,8 @@ export default function TableroKanban() {
                             </p>
                           </div>
 
-                          {/* Controles del Miembro (Solo si el usuario actual es Admin y NO es su propio usuario) */}
-                          {misPermisos.gestionar_usuarios && !isSelf && (
+                          {/* Controles del Miembro (Solo si el usuario actual es Admin y NO es usuario protegido) */}
+                          {misPermisos.gestionar_usuarios && !isProtected && (
                             <div className="flex items-center gap-2 shrink-0">
                               {/* Selector de Rol en Tablero (Administrador vs Miembro) */}
                               <select
@@ -2630,22 +2642,20 @@ export default function TableroKanban() {
                           )}
                         </div>
 
-                        {/* Permisos Personalizados (Acordeón - Solo para otros usuarios si se abre) */}
-                        {misPermisos.gestionar_usuarios && !isSelf && expandedUserPerms === u.id && (
+                        {/* Permisos Personalizados (Acordeón - Solo para miembros no protegidos) */}
+                        {misPermisos.gestionar_usuarios && !isProtected && expandedUserPerms === u.id && (
                           <div className="mt-4 pt-4 border-t border-slate-200/60 dark:border-[var(--border-accent)]/30 w-full animate-in fade-in slide-in-from-top-2 duration-200">
                             <div className="flex items-center justify-between mb-4">
                               <p className="text-[10px] font-black text-slate-400 dark:text-neutral-500 uppercase tracking-widest">Permisos del Miembro</p>
                             </div>
                             <div className="grid grid-cols-2 gap-y-3.5 gap-x-6 bg-white/50 dark:bg-black/10 p-4 rounded-xl border border-slate-200/40 dark:border-[var(--border-accent)]/20">
                               {[
-                                { key: 'ver_tablero', label: 'Ver Tablero' },
                                 { key: 'crear_tickets', label: 'Crear Tickets' },
                                 { key: 'editar_tickets', label: 'Editar Tickets' },
                                 { key: 'mover_tarjetas', label: 'Mover Tarjetas' },
                                 { key: 'eliminar_tickets', label: 'Eliminar Tickets' },
                                 { key: 'gestionar_comentarios', label: 'Comentar' },
-                                { key: 'ver_estadisticas', label: 'Estadísticas' },
-                                { key: 'gestionar_usuarios', label: 'Gestión Usuarios' }
+                                { key: 'ver_estadisticas', label: 'Estadísticas' }
                               ].map(perm => {
                                 const rawPerms = u?.permisos_tablero || {};
                                 const hasPerm = !!rawPerms[perm.key];

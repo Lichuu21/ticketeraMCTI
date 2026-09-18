@@ -5,6 +5,7 @@ import { DndContext, closestCenter, KeyboardSensor, PointerSensor, MouseSensor, 
 import { SortableContext, sortableKeyboardCoordinates, rectSortingStrategy, arrayMove, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import GestionUsuariosGlobal from '../components/GestionUsuariosGlobal';
+import ModalHerramientasComplementarias from '../components/ModalHerramientasComplementarias';
 import { parseTableroConfig, buildTableroConfig } from '../utils/configTablero';
 import api from '../api';
 
@@ -34,6 +35,7 @@ export default function Dashboard() {
   const [usuarioPerfil, setUsuarioPerfil] = useState(null);
   const [notificacionesPorTablero, setNotificacionesPorTablero] = useState({});
   const [modalUsuariosOpen, setModalUsuariosOpen] = useState(false);
+  const [modalHerramientasOpen, setModalHerramientasOpen] = useState(false);
 
   useEffect(() => {
     // Limpiar estilos globales de wallpaper o temas oscuros aplicados por el Kanban
@@ -221,7 +223,26 @@ export default function Dashboard() {
     setModalOpen(true);
   };
 
+  const esAdminDeTablero = (tablero) => {
+    if (!user || !tablero) return false;
+    const userRol = (user?.rol || usuarioPerfil?.rol || '').toLowerCase();
+    const isGlobalAdmin = !!(
+      user.is_superuser ||
+      usuarioPerfil?.is_superuser ||
+      userRol === 'administrador' ||
+      (usuarioPerfil?.roles_detalle && usuarioPerfil.roles_detalle.some(r => (r.nombre || '').toLowerCase() === 'administrador'))
+    );
+    if (isGlobalAdmin) return true;
+    if (String(tablero.creador_id || tablero.creador) === String(user.id)) return true;
+    if (tablero.rol_en_tablero === 'Administrador') return true;
+    return false;
+  };
+
   const abrirModalEdicion = (tablero) => {
+    if (!esAdminDeTablero(tablero)) {
+      alert("Solo el administrador del tablero puede editarlo.");
+      return;
+    }
     const parsed = parseTableroConfig(tablero.descripcion);
     const cols = tablero.columnas && tablero.columnas.length > 0 ? [...tablero.columnas] : ['Solicitud', 'En proceso', 'En espera', 'Resuelto'];
     setTableroEditando(tablero);
@@ -250,6 +271,10 @@ export default function Dashboard() {
     const descEncoded = buildTableroConfig(nuevaDesc.trim(), { req_com: validReqCom, col_inicial: selectedColInicial, color: colorTablero });
 
     if (tableroEditando) {
+      if (!esAdminDeTablero(tableroEditando)) {
+        alert("Solo el administrador del tablero puede modificar este tablero.");
+        return;
+      }
       const viejas = tableroEditando.columnas || ['Solicitud', 'En proceso', 'En espera', 'Resuelto'];
 
       const { error: errUpdate } = await api.tableros.update(
@@ -310,11 +335,16 @@ export default function Dashboard() {
   };
 
   const handleEliminarTablero = async (tableroId) => {
+    const t = tableros.find(item => item.id === tableroId) || tableroEditando;
+    if (t && !esAdminDeTablero(t)) {
+      alert("Solo el administrador del tablero puede eliminarlo.");
+      return;
+    }
     if (window.confirm('¿Estás seguro de que quieres eliminar este tablero? Esta acción no se puede deshacer y se perderán todos los tickets y datos asociados.')) {
       const { error } = await api.tableros.delete(tableroId);
 
       if (error) {
-        alert("Error al eliminar el tablero: " + error.message);
+        alert("Error al eliminar el tablero: " + (error.message || error.error || "Sin permiso"));
       } else {
         setModalOpen(false);
         setTableroEditando(null);
@@ -357,6 +387,17 @@ export default function Dashboard() {
             <h1 className="text-3xl font-extrabold text-slate-800 dark:text-white tracking-tight">Tus Tableros</h1>
           </div>
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => setModalHerramientasOpen(true)}
+              className="flex items-center gap-2 px-3 md:px-4 py-2 md:py-2.5 rounded-xl text-sm font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 hover:bg-emerald-100 dark:hover:bg-emerald-800/40 border border-emerald-200 dark:border-emerald-700/50 transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5"
+              title="Herramientas Complementarias (Importar / Exportar Excel, Atajos)"
+            >
+              <svg className="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+              </svg>
+              <span className="hidden sm:inline">Herramientas</span>
+            </button>
+
             {(usuarioPerfil?.is_superuser || usuarioPerfil?.roles?.includes('Administrador') || usuarioPerfil?.permisos?.gestionar_usuarios) && (
               <button
                 onClick={() => setModalUsuariosOpen(true)}
@@ -427,6 +468,7 @@ export default function Dashboard() {
                             navigate={navigate}
                             abrirModalEdicion={abrirModalEdicion}
                             notificacionesCount={notificacionesPorTablero[tablero.id] || 0}
+                            canEdit={esAdminDeTablero(tablero)}
                           />
                         ))}
                       </SortableContext>
@@ -450,6 +492,7 @@ export default function Dashboard() {
                             navigate={navigate}
                             abrirModalEdicion={abrirModalEdicion}
                             notificacionesCount={notificacionesPorTablero[tablero.id] || 0}
+                            canEdit={esAdminDeTablero(tablero)}
                           />
                         ))}
                       </SortableContext>
@@ -478,7 +521,7 @@ export default function Dashboard() {
               <p className="text-xs text-slate-400 dark:text-neutral-400 font-medium mt-0.5">Configura las columnas y el comportamiento inicial de tu tablero</p>
             </div>
             <div className="flex gap-2">
-              {tableroEditando && (
+              {tableroEditando && esAdminDeTablero(tableroEditando) && (
                 <button type="button" onClick={() => handleEliminarTablero(tableroEditando.id)} className="text-red-400 hover:text-red-600 dark:hover:text-red-400 p-2 rounded-full hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors" title="Eliminar tablero">
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                 </button>
@@ -897,6 +940,35 @@ export default function Dashboard() {
             </div>
           </div>
 
+          {/* Acceso a Herramientas Complementarias */}
+          <div className="mb-6">
+            <button
+              type="button"
+              onClick={() => {
+                setModalPerfilOpen(false);
+                setModalHerramientasOpen(true);
+              }}
+              className="w-full p-3.5 rounded-2xl text-left bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/20 hover:from-emerald-100 hover:to-teal-100 dark:hover:from-emerald-900/40 dark:hover:to-teal-900/30 border border-emerald-200/80 dark:border-emerald-700/50 transition-all flex items-center justify-between group shadow-sm hover:shadow-md hover:-translate-y-0.5"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-md shadow-emerald-600/30 group-hover:scale-105 transition-transform">
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                  </svg>
+                </div>
+                <div>
+                  <div className="font-bold text-slate-800 dark:text-white text-sm">Herramientas Complementarias</div>
+                  <div className="text-xs text-emerald-700 dark:text-emerald-400 font-medium">Exportar e importar tickets en Excel</div>
+                </div>
+              </div>
+              <div className="text-emerald-600 dark:text-emerald-400 p-1.5 rounded-lg group-hover:translate-x-0.5 transition-transform">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </div>
+            </button>
+          </div>
+
           <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200 mb-3 border-b border-slate-200 dark:border-white/10 pb-2 flex items-center justify-between">
             <span className="flex items-center gap-2">Cambiar Contraseña</span>
           </h3>
@@ -995,6 +1067,13 @@ export default function Dashboard() {
         isOpen={modalUsuariosOpen}
         onClose={() => setModalUsuariosOpen(false)}
       />
+
+      <ModalHerramientasComplementarias
+        isOpen={modalHerramientasOpen}
+        onClose={() => setModalHerramientasOpen(false)}
+        tableros={tableros}
+        onDataUpdated={cargarTableros}
+      />
     </div>
   );
 }
@@ -1021,7 +1100,7 @@ function TimeAgo({ date }) {
   return <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">{str ? `Actividad: ${str}` : ''}</span>;
 }
 
-function SortableTablero({ tablero, getRandomColor, navigate, abrirModalEdicion, notificacionesCount = 0 }) {
+function SortableTablero({ tablero, getRandomColor, navigate, abrirModalEdicion, notificacionesCount = 0, canEdit = false }) {
   const {
     attributes,
     listeners,
@@ -1049,15 +1128,16 @@ function SortableTablero({ tablero, getRandomColor, navigate, abrirModalEdicion,
       {...listeners}
       onClick={() => navigate(`/tablero/${tablero.id}`)}
     >
-      <button
-        onPointerDown={(e) => { e.stopPropagation(); }}
-        onClick={(e) => { e.stopPropagation(); e.preventDefault(); abrirModalEdicion(tablero); }}
-        className="absolute top-2 right-2 z-20 p-1.5 text-white/90 md:text-white/70 hover:text-white bg-black/30 md:bg-black/20 hover:bg-black/40 rounded-full transition-colors backdrop-blur-sm opacity-100 md:opacity-0 group-hover:opacity-100"
-        title="Editar tablero"
-      >
-        <svg className="hidden md:block w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-        <svg className="block md:hidden w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" /></svg>
-      </button>
+      {canEdit && (
+        <button
+          onPointerDown={(e) => { e.stopPropagation(); }}
+          onClick={(e) => { e.stopPropagation(); e.preventDefault(); abrirModalEdicion(tablero); }}
+          className="absolute top-2 right-2 z-20 p-1.5 text-white bg-black/40 hover:bg-black/70 rounded-full transition-all backdrop-blur-sm opacity-90 hover:opacity-100 hover:scale-110 shadow-md"
+          title="Editar tablero"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+        </button>
+      )}
       <div className="h-10 w-full shrink-0 relative transition-opacity group-hover:opacity-90" style={{ backgroundColor: bannerColor }}>
         <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent"></div>
         {notificacionesCount > 0 && (

@@ -320,6 +320,18 @@ export const tickets = {
     }
   },
 
+  async bulkImport(tableroId, ticketsList) {
+    try {
+      const data = await apiRequest('POST', '/tickets/bulk-import/', {
+        tablero_id: tableroId,
+        tickets: ticketsList,
+      });
+      return { data, error: null };
+    } catch (e) {
+      return formatError(e);
+    }
+  },
+
   async renameColumn(tableroId, oldName, newName) {
     try {
       const data = await apiRequest('POST', '/tickets/rename-column/', {

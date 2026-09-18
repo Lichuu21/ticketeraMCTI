@@ -10,6 +10,8 @@ class UserManager(BaseUserManager):
         if not email:
             raise ValueError('El email es requerido')
         email = self.normalize_email(email)
+        if not extra_fields.get('username'):
+            extra_fields['username'] = email
         user = self.model(email=email, **extra_fields)
         user.set_password(password)
         user.save(using=self._db)
@@ -24,6 +26,7 @@ class UserManager(BaseUserManager):
 class Rol(models.Model):
     nombre = models.CharField(max_length=100, unique=True)
     tableros = models.ManyToManyField('Tablero', blank=True, related_name='roles')
+    permisos = models.JSONField(default=dict, blank=True, help_text="Permisos por defecto asignados a usuarios con este rol (JSON)")
 
     class Meta:
         db_table = 'roles'
@@ -68,6 +71,11 @@ class Usuario(AbstractBaseUser, PermissionsMixin):
         db_table = 'usuarios'
         verbose_name = 'Usuario'
         verbose_name_plural = 'Usuarios'
+
+    def save(self, *args, **kwargs):
+        if not self.username:
+            self.username = self.email
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f'{self.nombre} {self.apellido}'.strip() or self.email
@@ -194,7 +202,7 @@ class Notificacion(models.Model):
 
 class WallpaperGroup(models.Model):
     nombre = models.CharField(max_length=100, unique=True)
-    icono = models.CharField(max_length=10, blank=True, default='')
+    icono = models.CharField(max_length=50, blank=True, default='')
     orden = models.IntegerField(default=0)
 
     class Meta:

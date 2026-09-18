@@ -5,7 +5,7 @@ from core.models import (
     SiteSetting, Usuario, Tablero, TableroUsuario, Ticket,
     Comentario, Notificacion, WallpaperGroup, Wallpaper, Rol, Group
 )
-from core.permissions import get_permisos_usuario, check_permiso
+from core.permissions import get_permisos_usuario, check_permiso, is_global_admin
 from .serializers import (
     UsuarioSerializer, TableroSerializer, TableroUsuarioSerializer,
     TicketSerializer, ComentarioSerializer, NotificacionSerializer,
@@ -80,13 +80,41 @@ class TableroViewSet(viewsets.ModelViewSet):
             usuario=self.request.user,
             defaults={'rol_en_tablero': 'Administrador'}
         )
+    def _check_admin(self, request, instance=None):
+        tablero_id = instance.id if instance else (self.kwargs.get('pk') or request.data.get('id'))
+        if tablero_id:
+            from core.permissions import is_tablero_admin
+            if not is_tablero_admin(request.user, int(tablero_id)):
+                return Response(
+                    {"error": "Solo el administrador del tablero puede editar o eliminar este tablero."},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+        return None
+
+    def update(self, request, *args, **kwargs):
+        tablero = self.get_object()
+        denied = self._check_admin(request, tablero)
+        if denied:
+            return denied
+        return super().update(request, *args, **kwargs)
+
+    def partial_update(self, request, *args, **kwargs):
+        tablero = self.get_object()
+        denied = self._check_admin(request, tablero)
+        if denied:
+            return denied
+        return super().partial_update(request, *args, **kwargs)
+
     def destroy(self, request, *args, **kwargs):
         try:
             instance = self.get_object()
+            denied = self._check_admin(request, instance)
+            if denied:
+                return denied
             instance.delete()
             return Response(
                 {"detail": "Tablero eliminado correctamente."},
-                status=status.HTTP_200_OK  # Devuelve 200 OK con JSON
+                status=status.HTTP_200_OK
             )
         except Tablero.DoesNotExist:
             return Response(
@@ -197,6 +225,82 @@ class TicketViewSet(viewsets.ModelViewSet):
             return Response({'error': str(e)}, status=500)
 
         return Response({'status': 'ok', 'updated': len(updates)})
+
+    @action(detail=False, methods=['post'], url_path='bulk-import')
+    def bulk_import(self, request):
+        from django.db import transaction
+        tablero_id = request.data.get('tablero_id')
+        tickets_data = request.data.get('tickets', [])
+
+        if not tablero_id:
+            return Response({'error': 'tablero_id es requerido'}, status=400)
+        if not tickets_data or not isinstance(tickets_data, list):
+            return Response({'error': 'Se requiere una lista de tickets para importar'}, status=400)
+
+        from core.permissions import check_permiso, is_tablero_admin
+        if not (is_tablero_admin(request.user, int(tablero_id)) or check_permiso(request.user, int(tablero_id), 'crear_tickets')):
+            return Response({'error': 'No tienes permisos para crear tickets en este tablero'}, status=403)
+
+        try:
+            tablero = Tablero.objects.get(pk=tablero_id)
+        except Tablero.DoesNotExist:
+            return Response({'error': 'Tablero no encontrado'}, status=404)
+
+        columnas_disponibles = tablero.columnas or ['Solicitud', 'En proceso', 'En espera', 'Resuelto']
+        columna_default = columnas_disponibles[0] if columnas_disponibles else 'Solicitud'
+
+        created_tickets = []
+        try:
+            with transaction.atomic():
+                for idx, t in enumerate(tickets_data):
+                    titulo = str(t.get('titulo') or '').strip()
+                    if not titulo:
+                        continue
+
+                    estado = str(t.get('estado') or '').strip()
+                    if not estado or estado not in columnas_disponibles:
+                        matched = next((c for c in columnas_disponibles if c.lower() == estado.lower()), None)
+                        estado = matched if matched else columna_default
+
+                    prioridad = str(t.get('prioridad') or 'Media').strip().capitalize()
+                    if prioridad not in ['Baja', 'Media', 'Alta', 'Urgente', 'Nota']:
+                        prioridad = 'Media'
+
+                    checklist = t.get('checklist') or []
+                    if isinstance(checklist, str):
+                        try:
+                            import json
+                            checklist = json.loads(checklist)
+                        except Exception:
+                            checklist = []
+
+                    ticket_obj = Ticket(
+                        tablero=tablero,
+                        titulo=titulo,
+                        descripcion=str(t.get('descripcion') or '').strip(),
+                        estado=estado,
+                        prioridad=prioridad,
+                        area=str(t.get('area') or '').strip(),
+                        responsable=str(t.get('responsable') or '').strip(),
+                        solicitante=str(t.get('solicitante') or '').strip(),
+                        seccion_solicitante=str(t.get('seccion_solicitante') or '').strip(),
+                        email_solicitante=str(t.get('email_solicitante') or '').strip(),
+                        checklist=checklist if isinstance(checklist, list) else [],
+                        posicion=idx
+                    )
+                    created_tickets.append(ticket_obj)
+
+                if created_tickets:
+                    Ticket.objects.bulk_create(created_tickets)
+
+        except Exception as e:
+            return Response({'error': f'Error durante la importación: {str(e)}'}, status=500)
+
+        return Response({
+            'status': 'ok',
+            'imported': len(created_tickets),
+            'message': f'Se importaron {len(created_tickets)} tickets exitosamente.'
+        })
 
 class ComentarioViewSet(viewsets.ModelViewSet):
     queryset = Comentario.objects.all()
@@ -538,7 +642,7 @@ def remove_member_view(request):
     except (Tablero.DoesNotExist, Usuario.DoesNotExist):
         return Response({'error': 'Tablero o usuario no encontrado'}, status=404)
 
-    if tablero.creador_id == target_user.id or target_user.is_superuser or target_user.is_staff or target_user.rol == 'Administrador':
+    if tablero.creador_id == target_user.id or is_global_admin(target_user):
         return Response({'error': 'No se puede eliminar al creador del tablero o administrador del sistema'}, status=403)
 
     deleted, _ = TableroUsuario.objects.filter(tablero_id=tablero_id, usuario_id=usuario_id).delete()
@@ -563,10 +667,10 @@ def update_member_role_view(request):
     except (Tablero.DoesNotExist, Usuario.DoesNotExist):
         return Response({'error': 'Tablero o usuario no encontrado'}, status=404)
 
-    if tablero.creador_id == target_user.id or target_user.is_superuser or target_user.is_staff or target_user.rol == 'Administrador':
+    if tablero.creador_id == target_user.id or is_global_admin(target_user):
         return Response({'error': 'No se puede modificar el rol del creador del tablero o administrador del sistema'}, status=403)
 
-    is_requester_creator_or_global = (tablero.creador_id == request.user.id) or request.user.is_superuser or request.user.is_staff or (request.user.rol == 'Administrador')
+    is_requester_creator_or_global = (tablero.creador_id == request.user.id) or is_global_admin(request.user)
     try:
         target_membership = TableroUsuario.objects.get(tablero_id=tablero_id, usuario_id=usuario_id)
         if target_membership.rol_en_tablero == 'Administrador' and not is_requester_creator_or_global:
@@ -599,7 +703,7 @@ def update_member_permisos_view(request):
     except (Tablero.DoesNotExist, Usuario.DoesNotExist):
         return Response({'error': 'Tablero o usuario no encontrado'}, status=404)
 
-    if tablero.creador_id == target_user.id or target_user.is_superuser or target_user.is_staff or target_user.rol == 'Administrador':
+    if tablero.creador_id == target_user.id or is_global_admin(target_user):
         return Response({'error': 'No se pueden modificar los permisos del creador o admin del sistema'}, status=403)
 
     obj, _ = TableroUsuario.objects.update_or_create(

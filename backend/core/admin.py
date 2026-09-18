@@ -19,7 +19,7 @@ class SiteSettingAdmin(admin.ModelAdmin):
 
 @admin.register(Rol)
 class RolAdmin(admin.ModelAdmin):
-    list_display = ['nombre']
+    list_display = ['nombre', 'permisos']
     search_fields = ['nombre']
 
 @admin.register(Group)
@@ -48,6 +48,11 @@ class UsuarioAdmin(UserAdmin):
             'fields': ('email', 'nombre', 'apellido', 'password1', 'password2', 'is_active', 'is_superuser', 'roles', 'groups'),
         }),
     )
+
+    def save_model(self, request, obj, form, change):
+        if not obj.username:
+            obj.username = obj.email
+        super().save_model(request, obj, form, change)
 
 @admin.register(Tablero)
 class TableroAdmin(admin.ModelAdmin):

@@ -137,11 +137,21 @@ class TableroSerializer(serializers.ModelSerializer):
         write_only=True,
         required=False
     )
+    rol_en_tablero = serializers.SerializerMethodField()
 
     class Meta:
         model = Tablero
-        fields = ['id', 'nombre', 'descripcion', 'creador', 'creador_id', 'creador_nombre', 'tipo', 'columnas', 'wallpaper_path', 'created_at']
+        fields = ['id', 'nombre', 'descripcion', 'creador', 'creador_id', 'creador_nombre', 'tipo', 'columnas', 'wallpaper_path', 'created_at', 'rol_en_tablero']
         read_only_fields = ['creador']
+
+    def get_rol_en_tablero(self, obj):
+        request = self.context.get('request')
+        if not request or not request.user or not request.user.is_authenticated:
+            return 'Miembro'
+        from core.permissions import is_tablero_admin
+        if is_tablero_admin(request.user, obj.id):
+            return 'Administrador'
+        return 'Miembro'
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
@@ -156,6 +166,7 @@ class TableroSerializer(serializers.ModelSerializer):
             except Usuario.DoesNotExist:
                 raise serializers.ValidationError({'creador_id': 'Usuario no encontrado'})
         return super().create(validated_data)
+
 
 
 class TableroUsuarioSerializer(serializers.ModelSerializer):
