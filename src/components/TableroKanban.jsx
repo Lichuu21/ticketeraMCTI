@@ -262,6 +262,17 @@ const TicketForm = ({ initialConfig, onSubmit, onCancel, user, usuarios, tipoTab
     return new Set(localConfig.responsables || []);
   }, [localConfig.responsables]);
 
+  const usuariosAsignables = React.useMemo(() => {
+    return (usuarios || []).filter(u => {
+      // Si ya está asignado actualmente al ticket, mantenerlo para preservar compatibilidad con tickets existentes
+      if (responsablesSet.has(u.nombre)) return true;
+      // Solo miembros del tablero actual
+      if (u.rol_en_tablero != null) return true;
+      if (tableroActual && (String(tableroActual.creador_id) === String(u.id) || String(tableroActual.creador) === String(u.id))) return true;
+      return false;
+    });
+  }, [usuarios, responsablesSet, tableroActual]);
+
   React.useEffect(() => {
     setLocalConfig(initialConfig);
     setTipoElegido(
@@ -529,10 +540,13 @@ const TicketForm = ({ initialConfig, onSubmit, onCancel, user, usuarios, tipoTab
 
             {/* Lista de usuarios con scroll ultra fluido */}
             <div className="flex-1 overflow-y-auto custom-scrollbar my-2 pr-1 space-y-1.5 max-h-[260px] md:max-h-[380px] bg-white dark:bg-[var(--bg-secondary)]/50 p-3 rounded-2xl border border-slate-200/70 dark:border-[var(--border-accent)]/50 shadow-inner">
-              {usuarios.length === 0 ? (
-                <p className="text-sm text-slate-400 p-2 italic text-center">No hay usuarios registrados</p>
+              {usuariosAsignables.length === 0 ? (
+                <div className="p-4 text-center">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold mb-1">No hay miembros en este tablero</p>
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500">Agrega personas al tablero desde el botón "Miembros del Tablero" en la barra superior.</p>
+                </div>
               ) : (
-                usuarios.map(u => {
+                usuariosAsignables.map(u => {
                   const isChecked = responsablesSet.has(u.nombre);
                   return (
                     <label key={u.id} className={`flex items-center gap-3 p-2.5 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-xl cursor-pointer transition-colors group border ${isChecked ? 'bg-blue-50/70 dark:bg-blue-900/25 border-blue-200/80 dark:border-blue-800/50' : 'border-transparent'}`}>
@@ -555,7 +569,7 @@ const TicketForm = ({ initialConfig, onSubmit, onCancel, user, usuarios, tipoTab
                 })
               )}
             </div>
-            <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium mt-1">Si la persona no está en la lista, regístrala primero en 'Gestión de Usuarios'.</p>
+            <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium mt-1">Solo los miembros de este tablero pueden ser asignados a los tickets.</p>
           </div>
 
           {/* Acciones de Footer */}
@@ -1249,6 +1263,31 @@ export default function TableroKanban() {
               if (auditError) console.error("Error al registrar auditoría de edición:", auditError);
             });
           }
+
+          // Notificar únicamente a nuevos usuarios asignados en esta edición
+          if (prioridad !== 'Nota' && respList.length > 0) {
+            const viejosResp = ticketViejo.responsable
+              ? ticketViejo.responsable.split(',').map(r => r.trim()).filter(Boolean)
+              : [];
+            const nuevosAsignados = respList.filter(r => !viejosResp.includes(r));
+            if (nuevosAsignados.length > 0) {
+              const notifEdicionPayload = (usuarios || [])
+                .filter(u => u.id !== user.id && nuevosAsignados.includes(u.nombre))
+                .map(u => ({
+                  usuario_id: u.id,
+                  ticket_id: id,
+                  mensaje: `Fuiste asignado al ticket: "${titulo}"`,
+                  leida: false
+                }));
+              if (notifEdicionPayload.length > 0) {
+                Promise.all(notifEdicionPayload.map(item => api.notificaciones.create(item)))
+                  .then(results => {
+                    const errors = results.filter(r => r.error);
+                    if (errors.length > 0) console.error("Error al despachar notificaciones de asignación:", errors[0].error);
+                  });
+              }
+            }
+          }
         }
       } else {
         // Crear nuevo ticket: respetar estado solicitado o columna inicial configurada
@@ -1340,14 +1379,14 @@ export default function TableroKanban() {
             }
           }
 
-          // Crear las notificaciones SOLO para los miembros del tablero (excepto el creador) y SOLO si no es una Nota
-          if (prioridad !== 'Nota') {
-            const notificacionesPayload = usuarios
-              .filter(u => u.id !== user.id && u.rol_en_tablero != null)
+          // Crear las notificaciones SOLO para los usuarios asignados al ticket (excepto si el creador se auto-asignó) y SOLO si no es una Nota
+          if (prioridad !== 'Nota' && respList.length > 0) {
+            const notificacionesPayload = (usuarios || [])
+              .filter(u => u.id !== user.id && respList.includes(u.nombre))
               .map(u => ({
                 usuario_id: u.id,
                 ticket_id: nuevoTicketId,
-                mensaje: `Nuevo ticket: "${titulo}"`,
+                mensaje: `Has sido asignado al ticket: "${titulo}"`,
                 leida: false
               }));
 

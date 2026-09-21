@@ -514,7 +514,7 @@ export default function Dashboard() {
           }
         }}
       >
-        <div className={`bg-white dark:bg-[var(--bg-secondary)] rounded-3xl shadow-2xl w-full max-w-4xl p-6 sm:p-8 border border-slate-100 dark:border-[var(--border-accent)] transform transition-all duration-300 max-h-[90vh] overflow-y-auto custom-scrollbar ${modalOpen ? 'scale-100 opacity-100' : 'scale-95 opacity-0'}`}>
+        <div className={`bg-white dark:bg-[var(--bg-secondary)] text-slate-800 dark:text-white rounded-3xl shadow-2xl w-full max-w-4xl p-6 sm:p-8 border border-slate-100 dark:border-[var(--border-accent)] transform transition-all duration-300 max-h-[90vh] overflow-y-auto custom-scrollbar ${modalOpen ? 'scale-100 opacity-100' : 'scale-95 opacity-0'}`}>
           <div className="flex justify-between items-center mb-6 pb-3 border-b border-slate-100 dark:border-white/10">
             <div>
               <h2 className="text-2xl font-extrabold text-slate-800 dark:text-white">{tableroEditando ? 'Editar Tablero' : 'Nuevo Tablero'}</h2>
@@ -543,7 +543,7 @@ export default function Dashboard() {
                   autoFocus
                   value={nuevoNombre}
                   onChange={e => setNuevoNombre(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 dark:text-white rounded-xl p-3.5 text-sm focus:ring-2 focus:ring-[#065E94]/50 outline-none transition-all"
+                  className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white caret-[#065E94] dark:caret-blue-400 rounded-xl p-3.5 text-sm focus:ring-2 focus:ring-[#065E94]/50 outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500"
                   placeholder="Ej. Soporte técnico"
                 />
               </div>
@@ -573,7 +573,7 @@ export default function Dashboard() {
                 <textarea
                   value={nuevaDesc}
                   onChange={e => setNuevaDesc(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 dark:text-white rounded-xl p-3 text-sm focus:ring-2 focus:ring-[#065E94]/50 outline-none transition-all resize-none h-20"
+                  className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white caret-[#065E94] dark:caret-blue-400 rounded-xl p-3 text-sm focus:ring-2 focus:ring-[#065E94]/50 outline-none transition-all resize-none h-20 placeholder:text-slate-400 dark:placeholder:text-slate-500"
                   placeholder="¿De qué trata este tablero?"
                 />
               </div>
@@ -583,9 +583,13 @@ export default function Dashboard() {
                 <div className="space-y-2 mb-3 max-h-52 overflow-y-auto px-1 custom-scrollbar">
                   {nuevoColumnas.map((col, idx) => (
                     <div
-                      key={`${col}-${idx}`}
+                      key={idx}
                       draggable
                       onDragStart={(e) => {
+                        if (e.target.tagName === 'INPUT' || e.target.closest('input')) {
+                          e.preventDefault();
+                          return;
+                        }
                         setDraggedColIndex(idx);
                         e.dataTransfer.effectAllowed = 'move';
                       }}
@@ -663,6 +667,8 @@ export default function Dashboard() {
                           <input
                             type="text"
                             value={col}
+                            draggable={false}
+                            onDragStart={(e) => { e.preventDefault(); e.stopPropagation(); }}
                             onChange={(e) => {
                               const newColName = e.target.value;
                               const cols = [...nuevoColumnas];
@@ -674,7 +680,7 @@ export default function Dashboard() {
                               }
                             }}
                             placeholder={`Columna ${idx + 1}`}
-                            className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 dark:text-white rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-[#065E94]/50 outline-none transition-all"
+                            className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white caret-[#065E94] dark:caret-blue-400 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-[#065E94]/50 outline-none transition-all cursor-text select-text placeholder:text-slate-400 dark:placeholder:text-slate-500"
                             required
                           />
                         </div>

@@ -19,6 +19,17 @@ html, body {
   }
 }
 
+/* Cursor de texto y caret siempre visibles y con alto contraste */
+input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="file"]),
+textarea {
+  caret-color: #065E94;
+}
+
+.dark input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="file"]),
+.dark textarea {
+  caret-color: #38bdf8;
+}
+
 html.dark body {
   background-color: var(--bg-main, #111111);
 }
