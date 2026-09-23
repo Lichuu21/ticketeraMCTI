@@ -79,7 +79,7 @@ const getPermisosByUser = (u, tablero) => {
 
 const COLUMNAS_BASE = ['Solicitud', 'En proceso', 'En espera', 'Resuelto'];
 
-
+const baseMinCache = {};
 const getNumeroTicket = (ticket, allTickets) => {
   if (!ticket || ticket.prioridad === 'Nota') return null;
   if (typeof ticket.id !== 'number') return ticket.id;
@@ -87,22 +87,34 @@ const getNumeroTicket = (ticket, allTickets) => {
   const tableroId = ticket.tablero_id || 'default';
   const storageKey = `board_min_id_${tableroId}`;
 
-  // Buscar el menor ID de los tickets (no notas) en este tablero
-  let baseMin = ticket.id;
-  if (Array.isArray(allTickets) && allTickets.length > 0) {
-    const nonNotas = allTickets.filter(t => t.prioridad !== 'Nota' && typeof t.id === 'number');
-    if (nonNotas.length > 0) {
-      baseMin = Math.min(...nonNotas.map(t => t.id));
+  let baseMin = baseMinCache[storageKey];
+  if (baseMin === undefined) {
+    baseMin = ticket.id;
+    if (Array.isArray(allTickets) && allTickets.length > 0) {
+      const nonNotas = allTickets.filter(t => t.prioridad !== 'Nota' && typeof t.id === 'number');
+      if (nonNotas.length > 0) {
+        baseMin = Math.min(...nonNotas.map(t => t.id));
+      }
+    }
+    try {
+      const cachedMin = localStorage.getItem(storageKey);
+      if (cachedMin && !isNaN(Number(cachedMin))) {
+        baseMin = Math.min(Number(cachedMin), baseMin);
+      }
+      localStorage.setItem(storageKey, baseMin);
+    } catch (e) {
+      // ignore
+    }
+    baseMinCache[storageKey] = baseMin;
+  } else if (ticket.id < baseMin) {
+    baseMin = ticket.id;
+    baseMinCache[storageKey] = baseMin;
+    try {
+      localStorage.setItem(storageKey, baseMin);
+    } catch (e) {
+      // ignore
     }
   }
-
-  // Si ya existía un ID mínimo registrado anteriormente para este tablero, no permitir que aumente al eliminar tickets
-  const cachedMin = localStorage.getItem(storageKey);
-  if (cachedMin && !isNaN(Number(cachedMin))) {
-    baseMin = Math.min(Number(cachedMin), baseMin);
-  }
-
-  localStorage.setItem(storageKey, baseMin);
 
   const num = ticket.id - baseMin + 1;
   return num > 0 ? num : ticket.id;
@@ -113,8 +125,9 @@ const getPrioridadColor = (prioridad) => {
     case 'Urgente': return 'badge-urgente';
     case 'Alta': return 'bg-transparent text-red-700 dark:text-red-500 border-red-600/60 dark:border-red-500/60 font-black';
     case 'Media': return 'bg-transparent text-emerald-700 dark:text-emerald-300 border-emerald-600/70 dark:border-emerald-400/70 font-bold';
-    case 'Baja': return 'bg-transparent text-cyan-600 dark:text-cyan-400 border-cyan-500/70 dark:border-cyan-400/70 font-black';
-    default: return 'bg-transparent text-gray-600 dark:text-gray-400 border-gray-500/30 dark:border-gray-500/50';
+    case 'Baja': return 'bg-transparent text-slate-600 dark:text-slate-400 border-slate-400/60 dark:border-slate-500/60 font-semibold';
+    case 'Nota': return 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30 font-bold';
+    default: return 'bg-transparent text-slate-600 dark:text-slate-400 border-slate-400/60 dark:border-slate-500/60 font-semibold';
   }
 };
 
@@ -128,8 +141,8 @@ const getInicial = (nombre) => {
   return parts[0].substring(0, 2).toUpperCase();
 };
 
-const TicketCard = React.memo(({ ticket, index, onClick, isReadOnly, allTickets, totalCols }) => {
-  const numeroTicket = getNumeroTicket(ticket, allTickets);
+const TicketCard = React.memo(({ ticket, index, onClick, isReadOnly, numeroTicket: propNumeroTicket, allTickets, totalCols }) => {
+  const numeroTicket = propNumeroTicket !== undefined ? propNumeroTicket : getNumeroTicket(ticket, allTickets);
   const maxAvatars = (totalCols && totalCols > 4) ? 2 : 3;
   const respList = ticket.responsable ? ticket.responsable.split(',').map(r => r.trim()).filter(Boolean) : [];
   const displayedAvatars = respList.slice(0, maxAvatars);
@@ -137,107 +150,114 @@ const TicketCard = React.memo(({ ticket, index, onClick, isReadOnly, allTickets,
 
   return (
     <Draggable draggableId={ticket.id.toString()} index={index} isDragDisabled={isReadOnly}>
-      {(provided, snapshot) => (
-        <div
-          ref={provided.innerRef}
-          {...provided.draggableProps}
-          {...provided.dragHandleProps}
-          onClick={() => onClick(ticket)}
-          className={`${!snapshot.isDragging ? 'glass-card' : ''} bg-white dark:bg-[var(--bg-card)] backdrop-blur-md dark:backdrop-blur-none p-3.5 md:p-4 rounded-xl md:rounded-2xl border border-slate-200/80 dark:border-[var(--border-accent)] cursor-pointer group flex flex-col justify-between h-[215px] ${snapshot.isDragging ? 'shadow-2xl ring-2 ring-[#065E94]/30 dark:ring-[var(--border-accent)] rotate-3 scale-[1.03] dark:bg-[var(--bg-hover)] opacity-100 z-[1000]' : 'shadow-sm dark:shadow-none transition-all duration-300 hover:shadow-[0_8px_25px_-5px_rgba(6,94,148,0.18)] hover:border-[#065E94]/40 hover:bg-white dark:hover:border-[var(--border-accent)] dark:hover:bg-[var(--bg-hover)] hover:-translate-y-1'
-            }`}
-        >
-          <div className="flex-1 flex flex-col justify-between min-h-0">
-            {/* Header: Prioridad, #ID, Área */}
-            <div>
-              <div className="flex justify-between items-center mb-2 h-6">
-                <div className="flex items-center gap-2">
-                  <span className={`text-[10px] uppercase tracking-wider font-bold px-2.5 py-0.5 rounded-lg border ${getPrioridadColor(ticket.prioridad)}`}>
-                    {ticket.prioridad}
-                  </span>
-                  {ticket.prioridad !== 'Nota' && numeroTicket && (
-                    <span className="text-xs font-black text-slate-500 dark:text-neutral-400">#{numeroTicket}</span>
-                  )}
-                </div>
-                {ticket.area && <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 group-hover:text-[#065E94] dark:group-hover:text-blue-400 transition-colors truncate max-w-[110px] text-right">{ticket.area}</span>}
-              </div>
-
-              {/* Título: Altura uniforme fija de 2 líneas max */}
-              <div className="h-[2.5rem] flex items-center mb-2">
-                <h3 className="text-xs md:text-sm font-semibold text-slate-800 dark:text-white leading-snug line-clamp-2" title={ticket.titulo}>
-                  {ticket.titulo}
-                </h3>
-              </div>
-            </div>
-
-            {/* Solicitante / Descripción Nota */}
-            {(ticket.solicitante || ticket.seccion_solicitante) ? (
-              <div className="glass-solicitor flex items-center gap-2 mb-2 bg-slate-100/80 dark:bg-white/5 border border-slate-200/60 dark:border-[var(--border-accent)] py-1.5 px-2.5 rounded-lg h-[38px] shrink-0">
-                <div className="flex items-center justify-center w-6 h-6 rounded-full bg-indigo-100 dark:bg-white/10 shadow-sm shrink-0 border border-white/10 dark:border-white/5">
-                  <svg className="w-3 h-3 text-indigo-600 dark:text-cyan-100 drop-shadow-sm" viewBox="0 0 24 24" fill="currentColor"><path fillRule="evenodd" d="M7.5 6a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM3.751 20.105a8.25 8.25 0 0116.498 0 .75.75 0 01-.437.695A18.683 18.683 0 0112 22.5c-2.786 0-5.433-.608-7.812-1.7a.75.75 0 01-.437-.695z" clipRule="evenodd" /></svg>
-                </div>
-                <div className="flex flex-col min-w-0 justify-center">
-                  <span className="text-[11px] font-extrabold text-slate-800 dark:text-white truncate leading-tight">
-                    {ticket.solicitante || 'Desconocido'}
-                  </span>
-                  {ticket.seccion_solicitante && (
-                    <span className="text-[9px] font-bold text-slate-500 dark:text-cyan-100/70 truncate leading-none uppercase tracking-wider mt-[1px]">
-                      {ticket.seccion_solicitante}
+      {(provided, snapshot) => {
+        const cardContent = (
+          <div
+            ref={provided.innerRef}
+            {...provided.draggableProps}
+            {...provided.dragHandleProps}
+            onClick={() => onClick(ticket)}
+            className={`${!snapshot.isDragging ? 'glass-card' : ''} bg-white dark:bg-[var(--bg-card)] text-slate-800 dark:text-white p-3.5 md:p-4 rounded-xl md:rounded-2xl border border-slate-200/80 dark:border-[var(--border-accent)] cursor-pointer group flex flex-col justify-between h-[215px] ${snapshot.isDragging ? 'shadow-2xl ring-2 ring-[#065E94]/30 dark:ring-[var(--border-accent)] rotate-3 scale-[1.03] dark:bg-[var(--bg-hover)] opacity-100 z-[1000]' : 'shadow-sm dark:shadow-none transition-all duration-300 hover:shadow-[0_8px_25px_-5px_rgba(6,94,148,0.18)] hover:border-[#065E94]/40 hover:bg-white dark:hover:border-[var(--border-accent)] dark:hover:bg-[var(--bg-hover)] hover:-translate-y-1'
+              }`}
+          >
+            <div className="flex-1 flex flex-col justify-between min-h-0">
+              {/* Header: Prioridad, #ID, Área */}
+              <div>
+                <div className="flex justify-between items-center mb-2 h-6">
+                  <div className="flex items-center gap-2">
+                    <span className={`text-[10px] uppercase tracking-wider font-bold px-2.5 py-0.5 rounded-lg border ${getPrioridadColor(ticket.prioridad)}`}>
+                      {ticket.prioridad}
                     </span>
-                  )}
+                    {ticket.prioridad !== 'Nota' && numeroTicket && (
+                      <span className="text-xs font-black text-slate-500 dark:text-neutral-400">#{numeroTicket}</span>
+                    )}
+                  </div>
+                  {ticket.area && <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 group-hover:text-[#065E94] dark:group-hover:text-blue-400 transition-colors truncate max-w-[110px] text-right">{ticket.area}</span>}
+                </div>
+
+                {/* Título: Altura uniforme fija de 2 líneas max */}
+                <div className="h-[2.5rem] flex items-center mb-2">
+                  <h3 className="text-xs md:text-sm font-semibold text-slate-800 dark:text-white leading-snug line-clamp-2" title={ticket.titulo}>
+                    {ticket.titulo}
+                  </h3>
                 </div>
               </div>
-            ) : (ticket.prioridad === 'Nota' && ticket.descripcion) ? (
-              <div className="glass-solicitor flex items-center gap-2 mb-2 bg-slate-100/80 dark:bg-white/5 border border-slate-200/60 dark:border-[var(--border-accent)] py-1.5 px-2.5 rounded-lg text-xs text-slate-700 dark:text-neutral-300 h-[38px] shrink-0 font-medium">
-                <span className="truncate">{ticket.descripcion}</span>
-              </div>
-            ) : (
-              <div className="h-[38px] mb-2 shrink-0" />
-            )}
-          </div>
 
-          {/* Footer: Fecha, Subtareas y Asignados */}
-          <div className="flex justify-between items-center pt-2.5 border-t border-slate-100 dark:border-white/5 h-[38px] shrink-0">
-            <div className="flex items-center gap-1.5">
-              <span className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold tracking-wide">
-                {new Date(ticket.fecha_creacion).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
-              </span>
-              {Array.isArray(ticket.checklist) && ticket.checklist.length > 0 && (() => {
-                const doneCount = ticket.checklist.filter(c => c.completado).length;
-                const totalCount = ticket.checklist.length;
-                const isAllDone = doneCount === totalCount;
-                return (
-                  <span className={`text-[9.5px] font-bold px-1.5 py-0.5 rounded-md flex items-center gap-1 border ${isAllDone ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border-emerald-200/60 dark:border-emerald-800/40' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'}`} title={`${doneCount} de ${totalCount} subtareas completadas`}>
-                    <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    {doneCount}/{totalCount}
-                  </span>
-                );
-              })()}
+              {/* Solicitante / Descripción Nota */}
+              {(ticket.solicitante || ticket.seccion_solicitante) ? (
+                <div className="glass-solicitor flex items-center gap-2 mb-2 bg-slate-100/80 dark:bg-white/5 border border-slate-200/60 dark:border-[var(--border-accent)] py-1.5 px-2.5 rounded-lg h-[38px] shrink-0">
+                  <div className="flex items-center justify-center w-6 h-6 rounded-full bg-indigo-100 dark:bg-white/10 shadow-sm shrink-0 border border-white/10 dark:border-white/5">
+                    <svg className="w-3 h-3 text-indigo-600 dark:text-cyan-100 drop-shadow-sm" viewBox="0 0 24 24" fill="currentColor"><path fillRule="evenodd" d="M7.5 6a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM3.751 20.105a8.25 8.25 0 0116.498 0 .75.75 0 01-.437.695A18.683 18.683 0 0112 22.5c-2.786 0-5.433-.608-7.812-1.7a.75.75 0 01-.437-.695z" clipRule="evenodd" /></svg>
+                  </div>
+                  <div className="flex flex-col min-w-0 justify-center">
+                    <span className="text-[11px] font-extrabold text-slate-800 dark:text-white truncate leading-tight">
+                      {ticket.solicitante || 'Desconocido'}
+                    </span>
+                    {ticket.seccion_solicitante && (
+                      <span className="text-[9px] font-bold text-slate-500 dark:text-cyan-100/70 truncate leading-none uppercase tracking-wider mt-[1px]">
+                        {ticket.seccion_solicitante}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ) : (ticket.prioridad === 'Nota' && ticket.descripcion) ? (
+                <div className="glass-solicitor flex items-center gap-2 mb-2 bg-slate-100/80 dark:bg-white/5 border border-slate-200/60 dark:border-[var(--border-accent)] py-1.5 px-2.5 rounded-lg text-xs text-slate-700 dark:text-neutral-300 h-[38px] shrink-0 font-medium">
+                  <span className="truncate">{ticket.descripcion}</span>
+                </div>
+              ) : (
+                <div className="h-[38px] mb-2 shrink-0" />
+              )}
             </div>
-            {ticket.responsable ? (
-              <div className="flex -space-x-1.5 shrink-0">
-                {displayedAvatars.map((r, i) => (
-                  <div
-                    key={i}
-                    className="w-7 h-7 rounded-full border-2 border-white dark:border-[var(--bg-card)] bg-slate-100 dark:bg-white/90 text-[#065E94] dark:text-[#0f172a] font-extrabold flex items-center justify-center text-[10px] shadow-sm transform transition-transform hover:scale-110 hover:z-10"
-                    title={r}
-                  >
-                    {getInicial(r)}
-                  </div>
-                ))}
-                {extraCount > 0 && (
-                  <div className="w-7 h-7 rounded-full bg-slate-100 dark:bg-white/90 text-slate-600 dark:text-[#0f172a] flex items-center justify-center text-[10px] font-extrabold border-2 border-white dark:border-[var(--bg-card)] shadow-sm z-0" title={respList.slice(maxAvatars).join(', ')}>
-                    +{extraCount}
-                  </div>
-                )}
+
+            {/* Footer: Fecha, Subtareas y Asignados */}
+            <div className="flex justify-between items-center pt-2.5 border-t border-slate-100 dark:border-white/5 h-[38px] shrink-0">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold tracking-wide">
+                  {new Date(ticket.fecha_creacion).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                </span>
+                {Array.isArray(ticket.checklist) && ticket.checklist.length > 0 && (() => {
+                  const doneCount = ticket.checklist.filter(c => c.completado).length;
+                  const totalCount = ticket.checklist.length;
+                  const isAllDone = doneCount === totalCount;
+                  return (
+                    <span className={`text-[9.5px] font-bold px-1.5 py-0.5 rounded-md flex items-center gap-1 border ${isAllDone ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border-emerald-200/60 dark:border-emerald-800/40' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'}`} title={`${doneCount} de ${totalCount} subtareas completadas`}>
+                      <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      {doneCount}/{totalCount}
+                    </span>
+                  );
+                })()}
               </div>
-            ) : (
-              <div className="h-7" />
-            )}
+              {ticket.responsable ? (
+                <div className="flex -space-x-1.5 shrink-0">
+                  {displayedAvatars.map((r, i) => (
+                    <div
+                      key={i}
+                      className="w-7 h-7 rounded-full border-2 border-white dark:border-[var(--bg-card)] bg-slate-100 dark:bg-white/90 text-[#065E94] dark:text-[#0f172a] font-extrabold flex items-center justify-center text-[10px] shadow-sm transform transition-transform hover:scale-110 hover:z-10"
+                      title={r}
+                    >
+                      {getInicial(r)}
+                    </div>
+                  ))}
+                  {extraCount > 0 && (
+                    <div className="w-7 h-7 rounded-full bg-slate-100 dark:bg-white/90 text-slate-600 dark:text-[#0f172a] flex items-center justify-center text-[10px] font-extrabold border-2 border-white dark:border-[var(--bg-card)] shadow-sm z-0" title={respList.slice(maxAvatars).join(', ')}>
+                      +{extraCount}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="h-7" />
+              )}
+            </div>
           </div>
-        </div>
-      )}
+        );
+
+        if (snapshot.isDragging) {
+          return createPortal(cardContent, document.body);
+        }
+        return cardContent;
+      }}
     </Draggable>
   );
 });
@@ -461,8 +481,8 @@ const TicketForm = ({ initialConfig, onSubmit, onCancel, user, usuarios, tipoTab
                 <input type="email" value={localConfig.email_solicitante || ''} onChange={e => setLocalConfig({ ...localConfig, email_solicitante: e.target.value })} className="w-full bg-white border border-slate-200 dark:border-[var(--border-accent)] dark:bg-[var(--bg-main)] dark:text-white rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-[#065E94]/50 outline-none transition-all shadow-sm dark:shadow-none" placeholder="ejemplo@correo.com" disabled={isInputDisabled} />
               </div>
 
-              {/* Row 3: Prioridad, Área & Columna */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {/* Row 3: Prioridad y Área (y Columna / Estado únicamente al editar ticket existente) */}
+              <div className={`grid grid-cols-1 ${localConfig.id ? 'sm:grid-cols-3' : 'sm:grid-cols-2'} gap-3`}>
                 <div>
                   <label className="block text-xs font-bold text-slate-500 dark:text-neutral-400 uppercase tracking-widest mb-1.5 truncate">Prioridad</label>
                   <select value={localConfig.prioridad} onChange={e => setLocalConfig({ ...localConfig, prioridad: e.target.value })} className="w-full bg-white border border-slate-200 dark:border-[var(--border-accent)] dark:bg-[var(--bg-main)] dark:text-white rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-[#065E94]/50 outline-none shadow-sm dark:shadow-none cursor-pointer" disabled={isInputDisabled}>
@@ -481,7 +501,7 @@ const TicketForm = ({ initialConfig, onSubmit, onCancel, user, usuarios, tipoTab
                     <option value="Desarrollo">Desarrollo</option>
                   </select>
                 </div>
-                {columnasActivas && columnasActivas.length > 0 && (
+                {localConfig.id && columnasActivas && columnasActivas.length > 0 && (
                   <div>
                     <label className="block text-xs font-bold text-slate-500 dark:text-neutral-400 uppercase tracking-widest mb-1.5 truncate">Columna / Estado</label>
                     <select value={localConfig.estado || (columnasActivas[0] || 'Solicitud')} onChange={e => setLocalConfig({ ...localConfig, estado: e.target.value })} className="w-full bg-white border border-slate-200 dark:border-[var(--border-accent)] dark:bg-[var(--bg-main)] dark:text-white rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-[#065E94]/50 outline-none transition-all shadow-sm dark:shadow-none cursor-pointer" disabled={isInputDisabled}>
@@ -632,8 +652,314 @@ export default function TableroKanban() {
   const fileInputRef = useRef(null);
   const fileInputRefMobile = useRef(null);
   const mensajesEndRef = useRef(null);
+  const commentInputRefDesktop = useRef(null);
+  const commentInputRefMobile = useRef(null);
+  const editTextareaRef = useRef(null);
   const [nuevoChecklist, setNuevoChecklist] = useState('');
   const [mostrarAgregarSubtarea, setMostrarAgregarSubtarea] = useState(false);
+
+  // Miembros del tablero para asignación y menciones (@)
+  const usuariosDelTablero = useMemo(() => {
+    const list = (usuarios || []).filter(u => {
+      if (u.rol_en_tablero != null) return true;
+      if (tableroActual && (
+        String(tableroActual.creador_id) === String(u.id) ||
+        String(tableroActual.creador) === String(u.id) ||
+        (typeof tableroActual.creador === 'object' && String(tableroActual.creador?.id) === String(u.id))
+      )) return true;
+      return false;
+    });
+    if (list.length === 0 && user) return [user];
+    return list;
+  }, [usuarios, tableroActual, user]);
+
+  const [mentionState, setMentionState] = useState({
+    active: false,
+    query: '',
+    index: 0,
+    target: null, // 'desktop' | 'mobile'
+    atPosition: -1
+  });
+
+  const filteredMentionUsers = useMemo(() => {
+    if (!mentionState.active) return [];
+    const q = (mentionState.query || '').trim().toLowerCase();
+    return usuariosDelTablero.filter(u => {
+      if (!q) return true;
+      const nombre = (u.nombre || '').toLowerCase();
+      const apellido = (u.apellido || '').toLowerCase();
+      const email = (u.email || '').toLowerCase();
+      const dep = (u.dependencia || '').toLowerCase();
+      return (
+        nombre.includes(q) ||
+        apellido.includes(q) ||
+        `${nombre} ${apellido}`.includes(q) ||
+        email.includes(q) ||
+        dep.includes(q)
+      );
+    });
+  }, [mentionState.active, mentionState.query, usuariosDelTablero]);
+
+  const checkMention = (text, cursorPos, targetType) => {
+    if (cursorPos == null) cursorPos = text.length;
+    const textBeforeCursor = text.slice(0, cursorPos);
+    const match = textBeforeCursor.match(/(?:^|\s)@([^\s@]*)$/);
+    if (match) {
+      const query = match[1];
+      const atPosition = textBeforeCursor.lastIndexOf('@');
+      setMentionState({
+        active: true,
+        query,
+        index: 0,
+        target: targetType,
+        atPosition
+      });
+    } else {
+      setMentionState(prev => prev.active ? { ...prev, active: false } : prev);
+    }
+  };
+
+  const handleTriggerMention = (targetType = 'desktop') => {
+    const inputRef = targetType === 'desktop' ? commentInputRefDesktop : commentInputRefMobile;
+    const currentVal = nuevoComentario || '';
+    const needsSpace = currentVal.length > 0 && !currentVal.endsWith(' ') && !currentVal.endsWith('\n');
+    const newVal = currentVal + (needsSpace ? ' @' : '@');
+    setNuevoComentario(newVal);
+    const newPos = newVal.length;
+    setTimeout(() => {
+      if (inputRef.current) {
+        inputRef.current.focus();
+        inputRef.current.setSelectionRange(newPos, newPos);
+      }
+      setMentionState({
+        active: true,
+        query: '',
+        index: 0,
+        target: targetType,
+        atPosition: newVal.lastIndexOf('@')
+      });
+    }, 10);
+  };
+
+  const handleSelectMentionUser = (selectedUser, targetType = 'desktop') => {
+    let inputRef = commentInputRefDesktop;
+    let text = nuevoComentario || '';
+    let setText = setNuevoComentario;
+
+    if (targetType === 'desktop') {
+      inputRef = commentInputRefDesktop;
+      text = nuevoComentario || '';
+      setText = setNuevoComentario;
+    } else if (targetType === 'mobile') {
+      inputRef = commentInputRefMobile;
+      text = nuevoComentario || '';
+      setText = setNuevoComentario;
+    } else if (targetType === 'edit') {
+      inputRef = editTextareaRef;
+      text = textoEditado || '';
+      setText = setTextoEditado;
+    }
+
+    const atPos = mentionState.atPosition >= 0 ? mentionState.atPosition : text.lastIndexOf('@');
+    if (atPos === -1) return;
+
+    const textBeforeAt = text.slice(0, atPos);
+    const textAfterAt = text.slice(atPos + 1);
+    const queryLen = mentionState.query ? mentionState.query.length : 0;
+    const remainingText = textAfterAt.slice(queryLen);
+
+    const userName = selectedUser.nombre || selectedUser.username || 'usuario';
+    const newText = `${textBeforeAt}@${userName} ${remainingText}`;
+    setText(newText);
+    setMentionState({ active: false, query: '', index: 0, target: null, atPosition: -1 });
+
+    const newCursorPos = textBeforeAt.length + userName.length + 2;
+    setTimeout(() => {
+      if (inputRef.current) {
+        inputRef.current.focus();
+        inputRef.current.setSelectionRange(newCursorPos, newCursorPos);
+      }
+    }, 10);
+  };
+
+  const handleCommentKeyDown = (e, targetType) => {
+    if (!mentionState.active || mentionState.target !== targetType) return;
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setMentionState(prev => ({
+        ...prev,
+        index: (prev.index + 1) % Math.max(1, filteredMentionUsers.length)
+      }));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setMentionState(prev => ({
+        ...prev,
+        index: (prev.index - 1 + filteredMentionUsers.length) % Math.max(1, filteredMentionUsers.length)
+      }));
+    } else if (e.key === 'Enter' || e.key === 'Tab') {
+      if (filteredMentionUsers.length > 0) {
+        e.preventDefault();
+        e.stopPropagation();
+        const userToSelect = filteredMentionUsers[mentionState.index] || filteredMentionUsers[0];
+        handleSelectMentionUser(userToSelect, targetType);
+      }
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      setMentionState(prev => ({ ...prev, active: false }));
+    }
+  };
+
+  useEffect(() => {
+    if (!mentionState.active) return;
+    const handleClickOutside = (e) => {
+      if (
+        (commentInputRefDesktop.current && commentInputRefDesktop.current.contains(e.target)) ||
+        (commentInputRefMobile.current && commentInputRefMobile.current.contains(e.target)) ||
+        (editTextareaRef.current && editTextareaRef.current.contains(e.target))
+      ) {
+        return;
+      }
+      setMentionState(prev => ({ ...prev, active: false }));
+    };
+    window.addEventListener('mousedown', handleClickOutside);
+    window.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      window.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [mentionState.active]);
+
+  const notificarMenciones = async (ticket, texto) => {
+    if (!ticket || !texto || !user) return;
+    const mentionedUsers = (usuariosDelTablero || []).filter(u => {
+      if (String(u.id) === String(user.id)) return false;
+      if (!u.nombre) return false;
+      const escaped = u.nombre.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(`(?<=\\s|^|[([{"'])@${escaped}(?=\\s|[.,!?;:]|$)`, 'i');
+      return regex.test(texto);
+    });
+
+    if (mentionedUsers.length > 0) {
+      try {
+        const preview = texto.length > 60 ? texto.slice(0, 57) + '...' : texto;
+        await Promise.all(mentionedUsers.map(u => api.notificaciones.create({
+          usuario_id: u.id,
+          ticket_id: ticket.id,
+          mensaje: `${user.nombre || 'Alguien'} te mencionó en "${ticket.titulo}": "${preview}"`,
+          leida: false
+        })));
+      } catch (err) {
+        console.error("Error enviando notificaciones de mención:", err);
+      }
+    }
+  };
+
+  const renderTextoComentario = (texto, esMio, hasImage) => {
+    if (!texto) return null;
+
+    const names = (usuariosDelTablero || [])
+      .map(u => u.nombre?.trim())
+      .filter(Boolean)
+      .sort((a, b) => b.length - a.length);
+
+    let pattern;
+    if (names.length > 0) {
+      const escapedNames = names.map(n => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+      pattern = new RegExp(`(?<=\\s|^|[([{"'])(@(?:${escapedNames.join('|')})|@[a-zA-Z0-9_\\u00C0-\\u017F]+)`, 'gi');
+    } else {
+      pattern = /(?<=\\s|^|[([{"'])(@[a-zA-Z0-9_\u00C0-\u017F]+)/gi;
+    }
+
+    const parts = texto.split(pattern);
+
+    return parts.map((part, i) => {
+      if (part && part.startsWith('@')) {
+        const rawName = part.slice(1).trim();
+        const isMe = user?.nombre && rawName.toLowerCase() === user.nombre.toLowerCase();
+
+        let badgeClasses = '';
+        if (esMio && !hasImage) {
+          badgeClasses = 'bg-white/25 text-white border border-white/30 font-bold';
+        } else if (isMe) {
+          badgeClasses = 'bg-amber-100 dark:bg-amber-500/20 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-600/50 font-extrabold ring-1 ring-amber-400/40';
+        } else {
+          badgeClasses = 'bg-blue-100 dark:bg-blue-900/40 text-[#065E94] dark:text-blue-300 border border-blue-200/70 dark:border-blue-700/50 font-bold';
+        }
+
+        return (
+          <span
+            key={i}
+            className={`inline-flex items-center px-1.5 py-0.5 rounded-lg text-xs mx-0.5 shadow-2xs align-baseline transition-colors ${badgeClasses}`}
+          >
+            {part}
+          </span>
+        );
+      }
+      return part;
+    });
+  };
+
+  const renderMentionDropdown = (targetType) => {
+    if (!mentionState.active || mentionState.target !== targetType) return null;
+
+    return (
+      <div className="absolute bottom-full mb-2 left-0 right-0 z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-slate-200 dark:border-slate-700/80 rounded-2xl shadow-2xl overflow-hidden max-h-56 flex flex-col animate-in fade-in slide-in-from-bottom-2 duration-150">
+        <div className="px-3 py-1.5 bg-slate-50/90 dark:bg-slate-800/60 border-b border-slate-200/60 dark:border-slate-700/50 flex items-center justify-between text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+          <span className="flex items-center gap-1.5">
+            <span className="text-[#065E94] dark:text-blue-400 font-extrabold text-xs">@</span> Mencionar miembro del tablero
+          </span>
+          <span className="text-[10px] text-slate-400 dark:text-slate-500 hidden sm:inline">↑↓ navegar • Enter seleccionar</span>
+        </div>
+        <div className="overflow-y-auto custom-scrollbar p-1.5 space-y-1">
+          {filteredMentionUsers.length === 0 ? (
+            <div className="p-3 text-center text-xs text-slate-400 dark:text-slate-500">
+              No hay miembros que coincidan con "{mentionState.query}"
+            </div>
+          ) : (
+            filteredMentionUsers.map((u, idx) => {
+              const isSelected = idx === mentionState.index;
+              return (
+                <button
+                  key={u.id}
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    handleSelectMentionUser(u, targetType);
+                  }}
+                  onTouchStart={() => {
+                    handleSelectMentionUser(u, targetType);
+                  }}
+                  onMouseEnter={() => setMentionState(prev => ({ ...prev, index: idx }))}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left transition-all cursor-pointer ${isSelected
+                      ? 'bg-blue-50 dark:bg-blue-600/25 text-[#065E94] dark:text-blue-200 ring-1 ring-[#065E94]/20 dark:ring-blue-500/30'
+                      : 'hover:bg-slate-50 dark:hover:bg-slate-800/50 text-slate-700 dark:text-slate-200'
+                    }`}
+                >
+                  <div className="w-7 h-7 rounded-full bg-[#065E94]/10 dark:bg-blue-500/20 text-[#065E94] dark:text-blue-300 font-extrabold flex items-center justify-center text-[10px] shrink-0 border border-[#065E94]/20 dark:border-blue-500/30">
+                    {getInicial(u.nombre)}
+                  </div>
+                  <div className="flex flex-col min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-bold truncate">{u.nombre}</span>
+                      {u.rol_en_tablero && (
+                        <span className="text-[9.5px] px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-semibold border border-slate-200/50 dark:border-slate-700/50">
+                          {u.rol_en_tablero}
+                        </span>
+                      )}
+                    </div>
+                    {u.dependencia && (
+                      <span className="text-[10px] text-slate-400 dark:text-slate-500 truncate">{u.dependencia}</span>
+                    )}
+                  </div>
+                </button>
+              );
+            })
+          )}
+        </div>
+      </div>
+    );
+  };
 
   const [notificaciones, setNotificaciones] = useState([]);
 
@@ -648,11 +974,21 @@ export default function TableroKanban() {
     actionsRef.current = { setTicketActivo, setDetalleOpen, user, setNotificaciones, notificaciones };
   });
 
+  const commentsCacheRef = useRef({});
+
   const fetchComentarios = async (ticketId) => {
     const { data, error } = await api.comentarios.getByTicket(ticketId);
-    if (error) console.error("Error al buscar comentarios:", error);
-    else setComentarios(data);
+    if (error) {
+      console.error("Error al buscar comentarios:", error);
+    } else {
+      commentsCacheRef.current[ticketId] = data;
+      setComentarios(data);
+    }
   };
+
+  const reversedComentarios = useMemo(() => {
+    return [...comentarios].reverse();
+  }, [comentarios]);
 
   const handleTicketClick = React.useCallback((ticket) => {
     if (!actionsRef.current) return;
@@ -660,6 +996,11 @@ export default function TableroKanban() {
 
     setTicketActivo(ticket);
     setDetalleOpen(true);
+    if (commentsCacheRef.current[ticket.id]) {
+      setComentarios(commentsCacheRef.current[ticket.id]);
+    } else {
+      setComentarios([]);
+    }
     fetchComentarios(ticket.id);
 
     if (user) {
@@ -790,7 +1131,7 @@ export default function TableroKanban() {
       document.body.style.backgroundImage = `url('${wp.url}')`;
       document.body.style.backgroundSize = 'cover';
       document.body.style.backgroundPosition = 'center';
-      document.body.style.backgroundAttachment = 'fixed';
+      document.body.style.backgroundAttachment = 'scroll';
     } else {
       document.body.style.backgroundImage = '';
       document.body.style.backgroundSize = '';
@@ -855,16 +1196,22 @@ export default function TableroKanban() {
   const handleGuardarEdicionComentario = async (comentarioId) => {
     if (!textoEditado.trim()) return;
 
+    const nuevoTexto = textoEditado.trim();
     // Optimistic update
     const prevComentarios = [...comentarios];
-    setComentarios(prev => prev.map(c => c.id === comentarioId ? { ...c, texto: textoEditado.trim() } : c));
+    setComentarios(prev => prev.map(c => c.id === comentarioId ? { ...c, texto: nuevoTexto } : c));
     setComentarioAEditar(null);
+    setMentionState(prev => prev.target === 'edit' ? { ...prev, active: false } : prev);
 
-    const { error } = await api.comentarios.update(comentarioId, { texto: textoEditado.trim() });
+    const { error } = await api.comentarios.update(comentarioId, { texto: nuevoTexto });
     if (error) {
       console.error("Error editando comentario", error);
       alert("No se pudo editar el comentario: " + error.message);
       setComentarios(prevComentarios);
+    } else {
+      if (ticketActivo) {
+        notificarMenciones(ticketActivo, nuevoTexto);
+      }
     }
   };
 
@@ -977,6 +1324,16 @@ export default function TableroKanban() {
 
     return data;
   }, [tickets, columnasActivas]);
+
+  // Mapeo memoizado de números de ticket para evitar recálculos y lecturas sincrónicas en cada tarjeta
+  const numerosTicketsMap = React.useMemo(() => {
+    const map = {};
+    if (!Array.isArray(tickets) || tickets.length === 0) return map;
+    for (const t of tickets) {
+      map[t.id] = getNumeroTicket(t, tickets);
+    }
+    return map;
+  }, [tickets]);
 
   // 2. Drag & Drop - Reordenamiento via campo posicion (robusto y persistente)
   const onDragEnd = async (result) => {
@@ -1290,23 +1647,24 @@ export default function TableroKanban() {
           }
         }
       } else {
-        // Crear nuevo ticket: respetar estado solicitado o columna inicial configurada
+        // Crear nuevo ticket: respetar columna inicial configurada en el tablero
         const parsedBoardConfig = parseTableroConfig(tableroActual?.descripcion);
         const colInicialConfigurada = parsedBoardConfig.config?.col_inicial;
 
         let estadoInicial;
-        if (estado && (columnasActivas || []).includes(estado)) {
-          estadoInicial = estado;
-        } else if (prioridad === 'Nota') {
+        if (prioridad === 'Nota') {
           const colNota = (columnasActivas || []).find(c => c.toLowerCase().includes('informaci') || c.toLowerCase().includes('nota'));
           estadoInicial = colNota || ((columnasActivas && columnasActivas.length > 0) ? columnasActivas[0] : 'Información util');
+        } else if (configToUse?.columnaForzada && estado && (columnasActivas || []).includes(estado)) {
+          // Creado explícitamente desde el botón '+' de una columna específica
+          estadoInicial = estado;
+        } else if (colInicialConfigurada && (columnasActivas || []).includes(colInicialConfigurada)) {
+          estadoInicial = colInicialConfigurada;
+        } else if (estado && (columnasActivas || []).includes(estado)) {
+          estadoInicial = estado;
         } else {
-          if (colInicialConfigurada && (columnasActivas || []).includes(colInicialConfigurada)) {
-            estadoInicial = colInicialConfigurada;
-          } else {
-            const colSolicitud = (columnasActivas || []).find(c => c.toLowerCase().includes('solicitud'));
-            estadoInicial = colSolicitud || (columnasActivas && columnasActivas.includes('Solicitud') ? 'Solicitud' : ((columnasActivas && columnasActivas.length > 0) ? columnasActivas[0] : 'Solicitud'));
-          }
+          const colSolicitud = (columnasActivas || []).find(c => c.toLowerCase().includes('solicitud'));
+          estadoInicial = colSolicitud || (columnasActivas && columnasActivas.includes('Solicitud') ? 'Solicitud' : ((columnasActivas && columnasActivas.length > 0) ? columnasActivas[0] : 'Solicitud'));
         }
 
         const payload = {
@@ -1464,10 +1822,10 @@ export default function TableroKanban() {
     try {
       // Crear usuario directamente en la tabla usuarios (el backend maneja auth)
       const { data, error } = await api.usuarios.create({
-          nombre: formUsuario.nombre,
-          email: formUsuario.email,
-          dependencia: formUsuario.dependencia,
-        });
+        nombre: formUsuario.nombre,
+        email: formUsuario.email,
+        dependencia: formUsuario.dependencia,
+      });
 
       if (error) {
         console.error("Error inserting user:", error);
@@ -1951,7 +2309,24 @@ export default function TableroKanban() {
             {misPermisos.crear_tickets && (
               <button
                 onClick={() => {
-                  setFormConfig({ id: null, titulo: '', descripcion: '', area: '', prioridad: 'Media', responsables: [], solicitante: '', seccion_solicitante: '', estado: columnasActivas[0] || 'Solicitud' });
+                  const parsedBoardConfig = parseTableroConfig(tableroActual?.descripcion);
+                  const colInicialConfigurada = parsedBoardConfig.config?.col_inicial;
+                  const colDestino = (colInicialConfigurada && (columnasActivas || []).includes(colInicialConfigurada))
+                    ? colInicialConfigurada
+                    : ((columnasActivas && columnasActivas.length > 0) ? columnasActivas[0] : 'Solicitud');
+
+                  setFormConfig({
+                    id: null,
+                    titulo: '',
+                    descripcion: '',
+                    area: '',
+                    prioridad: 'Media',
+                    responsables: [],
+                    solicitante: '',
+                    seccion_solicitante: '',
+                    email_solicitante: '',
+                    estado: colDestino
+                  });
                   setModalOpen(true);
                 }}
                 className="px-5 py-2.5 rounded-xl text-sm font-semibold text-[#065E94] dark:text-white bg-white/80 dark:bg-[var(--bg-secondary)] hover:bg-blue-50 dark:hover:bg-[var(--bg-hover)] shadow-[0_4px_15px_-3px_rgba(6,94,148,0.15)] dark:shadow-none hover:-translate-y-1 dark:hover:-translate-y-0 transition-all duration-300 border border-blue-100 dark:border-[var(--border-accent)] backdrop-blur-md dark:backdrop-blur-none flex items-center gap-2"
@@ -2146,18 +2521,18 @@ export default function TableroKanban() {
 
             {/* Tablero Kanban */}
             <DragDropContext onDragEnd={onDragEnd}>
-              <div ref={kanbanContainerRef} className={`flex ${columnasActivas.length > 4 ? 'gap-3.5' : 'gap-4 sm:gap-6'} pb-6 items-start flex-1 min-h-0 overflow-x-auto overflow-y-hidden w-full px-2 pr-12 snap-x snap-mandatory scroll-smooth custom-scrollbar`}>
+              <div ref={kanbanContainerRef} className={`flex ${columnasActivas.length > 4 ? 'gap-3.5' : 'gap-4 sm:gap-6'} pb-6 items-start flex-1 min-h-0 overflow-x-auto overflow-y-hidden w-full px-2 pr-12 snap-x snap-mandatory custom-scrollbar`}>
                 {columnasActivas.map(columnId => (
                   <div
                     key={columnId}
                     className={`glass-column flex-shrink-0 ${columnasActivas.length <= 4
-                        ? 'w-[85vw] sm:w-[340px]'
-                        : columnasActivas.length === 5
-                          ? 'w-[80vw] sm:w-[285px]'
-                          : 'w-[75vw] sm:w-[250px] min-w-[250px]'
+                      ? 'w-[85vw] sm:w-[340px]'
+                      : columnasActivas.length === 5
+                        ? 'w-[80vw] sm:w-[285px]'
+                        : 'w-[75vw] sm:w-[250px] min-w-[250px]'
                       } flex flex-col rounded-2xl p-2 bg-slate-200/60 dark:bg-[var(--bg-column)] border border-slate-300/50 dark:border-[var(--border-accent)]/30 max-h-[calc(100vh-140px)] sm:max-h-[680px] min-h-[250px] shadow-sm relative transition-all duration-200 snap-center sm:snap-none`}
                   >
-                    <div className="flex justify-between items-center mb-3 pt-2 px-3">
+                    <div className="flex justify-between items-center mb-1 pt-2 px-3">
                       <h2 className="font-extrabold text-slate-700/80 dark:text-neutral-200 text-[15px] uppercase tracking-wide">{columnId}</h2>
                       <div className="flex items-center gap-1.5">
                         <span className="text-xs bg-slate-300/50 dark:bg-[var(--bg-secondary)] text-slate-600 dark:text-neutral-300 px-2 py-1 rounded-md font-bold shadow-sm">
@@ -2175,7 +2550,9 @@ export default function TableroKanban() {
                                 responsables: [],
                                 solicitante: '',
                                 seccion_solicitante: '',
-                                estado: columnId
+                                email_solicitante: '',
+                                estado: columnId,
+                                columnaForzada: true
                               });
                               setModalOpen(true);
                             }}
@@ -2195,7 +2572,7 @@ export default function TableroKanban() {
                         <div
                           {...provided.droppableProps}
                           ref={provided.innerRef}
-                          className={`flex-1 overflow-y-auto min-h-[150px] space-y-3.5 px-2 pb-32 sm:pb-6 pt-1 transition-colors duration-300 ${snapshot.isDraggingOver ? 'bg-blue-50/50 dark:bg-[var(--bg-secondary)]/50 rounded-2xl ring-2 ring-[#065E94]/30 dark:ring-[var(--border-accent)] shadow-inner dark:shadow-none' : ''
+                          className={`flex-1 overflow-y-auto min-h-[150px] space-y-3.5 px-2 pb-32 sm:pb-6 pt-3 transition-colors duration-300 ${snapshot.isDraggingOver ? 'bg-blue-50/50 dark:bg-[var(--bg-secondary)]/50 rounded-2xl ring-2 ring-[#065E94]/30 dark:ring-[var(--border-accent)] shadow-inner dark:shadow-none' : ''
                             }`}
                         >
                           {columnasData[columnId].length === 0 && !snapshot.isDraggingOver ? (
@@ -2214,7 +2591,7 @@ export default function TableroKanban() {
                                 index={index}
                                 onClick={handleTicketClick}
                                 isReadOnly={!misPermisos.mover_tarjetas}
-                                allTickets={tickets}
+                                numeroTicket={numerosTicketsMap[ticket.id]}
                                 totalCols={columnasActivas.length}
                               />
                             ))
@@ -2307,10 +2684,10 @@ export default function TableroKanban() {
 
       {/* ===== WALLPAPER PICKER MODAL ===== */}
       <div
-        className={`fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-[60] p-4 transition-all duration-300 ${wallpaperModalOpen ? 'opacity-100 visible' : 'opacity-0 invisible pointer-events-none'}`}
+        className={`fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[60] p-4 transition-opacity duration-200 ease-out ${wallpaperModalOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
         onClick={(e) => { if (e.target === e.currentTarget) setWallpaperModalOpen(false); }}
       >
-        <div className={`bg-slate-900/95 backdrop-blur-3xl border border-white/20 rounded-3xl shadow-[0_30px_80px_rgba(0,0,0,0.5)] w-full max-w-4xl p-6 sm:p-8 max-h-[85vh] flex flex-col transform transition-all duration-300 ${wallpaperModalOpen ? 'scale-100 opacity-100' : 'scale-95 opacity-0'}`}>
+        <div className={`bg-slate-900/98 border border-white/15 rounded-3xl shadow-2xl w-full max-w-4xl p-6 sm:p-8 max-h-[85vh] flex flex-col transform transition-[transform,opacity] duration-200 ease-out will-change-[transform,opacity] ${wallpaperModalOpen ? 'scale-100 opacity-100' : 'scale-95 opacity-0'}`}>
           {/* Header */}
           <div className="flex justify-between items-center mb-4 sm:mb-6 shrink-0">
             <div>
@@ -2339,8 +2716,8 @@ export default function TableroKanban() {
                     type="button"
                     onClick={() => setCategoriaFondo(grpIdStr)}
                     className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all duration-300 whitespace-nowrap cursor-pointer ${isActive
-                        ? 'bg-gradient-to-r from-[#065E94] to-[#043d63] text-white shadow-lg shadow-[#065E94]/40 scale-[1.02]'
-                        : 'text-white/60 hover:text-white hover:bg-white/10'
+                      ? 'bg-gradient-to-r from-[#065E94] to-[#043d63] text-white shadow-lg shadow-[#065E94]/40 scale-[1.02]'
+                      : 'text-white/60 hover:text-white hover:bg-white/10'
                       }`}
                   >
                     {grp.icono && (grp.icono.startsWith('http') || grp.icono.startsWith('/')) ? (
@@ -2358,8 +2735,8 @@ export default function TableroKanban() {
                   type="button"
                   onClick={() => setCategoriaFondo('general')}
                   className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all duration-300 whitespace-nowrap cursor-pointer ${categoriaFondo === 'general'
-                      ? 'bg-gradient-to-r from-[#065E94] to-[#043d63] text-white shadow-lg shadow-[#065E94]/40 scale-[1.02]'
-                      : 'text-white/60 hover:text-white hover:bg-white/10'
+                    ? 'bg-gradient-to-r from-[#065E94] to-[#043d63] text-white shadow-lg shadow-[#065E94]/40 scale-[1.02]'
+                    : 'text-white/60 hover:text-white hover:bg-white/10'
                     }`}
                 >
                   <span className="text-base sm:text-lg">🏞️</span> Fondos
@@ -2369,8 +2746,8 @@ export default function TableroKanban() {
                   type="button"
                   onClick={() => setCategoriaFondo('pba')}
                   className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all duration-300 whitespace-nowrap cursor-pointer ${categoriaFondo === 'pba'
-                      ? 'bg-gradient-to-r from-[#065E94] to-[#043d63] text-white shadow-lg shadow-[#065E94]/40 scale-[1.02]'
-                      : 'text-white/60 hover:text-white hover:bg-white/10'
+                    ? 'bg-gradient-to-r from-[#065E94] to-[#043d63] text-white shadow-lg shadow-[#065E94]/40 scale-[1.02]'
+                    : 'text-white/60 hover:text-white hover:bg-white/10'
                     }`}
                 >
                   <img src="/logo-pba-blanco.png" alt="PBA" className="w-5 h-5 object-contain" /> Prov. de Buenos Aires
@@ -2380,8 +2757,8 @@ export default function TableroKanban() {
                   type="button"
                   onClick={() => setCategoriaFondo('abstract')}
                   className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all duration-300 whitespace-nowrap cursor-pointer ${categoriaFondo === 'abstract'
-                      ? 'bg-gradient-to-r from-[#065E94] to-[#043d63] text-white shadow-lg shadow-[#065E94]/40 scale-[1.02]'
-                      : 'text-white/60 hover:text-white hover:bg-white/10'
+                    ? 'bg-gradient-to-r from-[#065E94] to-[#043d63] text-white shadow-lg shadow-[#065E94]/40 scale-[1.02]'
+                    : 'text-white/60 hover:text-white hover:bg-white/10'
                     }`}
                 >
                   <span className="text-base sm:text-lg">🎨</span> Fondos Abstractos
@@ -2391,12 +2768,12 @@ export default function TableroKanban() {
           </div>
 
           {/* Grid ampliado y espacioso */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5 flex-1 min-h-0 overflow-y-auto p-2 sm:p-4 custom-scrollbar">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5 flex-1 min-h-0 overflow-y-auto p-2 sm:p-4 custom-scrollbar [contain:content]">
             {WALLPAPERS.filter(wp => String(wp.categoria) === String(categoriaFondo) || wp.id === 'none').map(wp => (
               <button
                 key={wp.id}
                 onClick={() => { setActiveWallpaper(wp.id); }}
-                className={`relative rounded-2xl overflow-hidden h-44 sm:h-40 w-full shrink-0 block group transition-all duration-300 ${String(activeWallpaper) === String(wp.id)
+                className={`relative rounded-2xl overflow-hidden h-44 sm:h-40 w-full shrink-0 block group transition-[transform,box-shadow] duration-200 ${String(activeWallpaper) === String(wp.id)
                   ? 'ring-4 ring-[#065E94] ring-offset-4 ring-offset-[#0a1628] scale-[1.02]'
                   : 'hover:scale-[1.03] hover:ring-2 hover:ring-[#065E94]/40'
                   }`}
@@ -2444,8 +2821,8 @@ export default function TableroKanban() {
 
       {/* Modal - Perfil y Contraseña */}
       {modalPerfilOpen && (
-        <div className="fixed inset-0 bg-slate-900/20 dark:bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4 opacity-100 transition-opacity animate-in fade-in duration-300" onClick={(e) => { if (e.target === e.currentTarget) setModalPerfilOpen(false) }}>
-          <div className="bg-white/90 dark:bg-[var(--bg-secondary)] backdrop-blur-2xl dark:backdrop-blur-none rounded-[32px] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] dark:shadow-none w-full max-w-md p-8 border border-white/60 dark:border-[var(--border-accent)] transform transition-all animate-in zoom-in-95 duration-300">
+        <div className="fixed inset-0 bg-slate-900/40 dark:bg-black/80 backdrop-blur-xs flex items-center justify-center z-50 p-4 opacity-100 transition-opacity animate-in fade-in duration-200" onClick={(e) => { if (e.target === e.currentTarget) setModalPerfilOpen(false) }}>
+          <div className="bg-white dark:bg-[var(--bg-secondary)] rounded-[32px] shadow-2xl dark:shadow-none w-full max-w-md p-8 border border-slate-200/80 dark:border-[var(--border-accent)] transform transition-[transform,opacity] duration-200 will-change-[transform,opacity] animate-in zoom-in-95">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-bold text-slate-800 dark:text-white bg-clip-text text-transparent bg-gradient-to-r from-[#065E94] to-[#043d63] dark:from-[#2a83bd] dark:to-[#4ea8de]">
                 Mi Perfil
@@ -2495,8 +2872,8 @@ export default function TableroKanban() {
 
       {/* Modal - Creación/Edición (Glassmorphism) */}
       {modalOpen && (
-        <div className="fixed inset-0 bg-slate-900/20 dark:bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4 opacity-100 transition-opacity animate-in fade-in duration-300" onClick={(e) => { if (e.target === e.currentTarget) setModalOpen(false) }}>
-          <div className={`bg-white/95 dark:bg-[var(--bg-secondary)] backdrop-blur-md rounded-[32px] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] dark:shadow-none w-full border border-white/60 dark:border-[var(--border-accent)] transform-gpu transition-all animate-in zoom-in-95 duration-200 overflow-hidden ${tableroActual?.tipo !== 'Personal' && formConfig.prioridad !== 'Nota' ? 'max-w-[960px]' : 'max-w-lg'}`}>
+        <div className="fixed inset-0 bg-slate-900/40 dark:bg-black/80 backdrop-blur-xs flex items-center justify-center z-50 p-4 opacity-100 transition-opacity animate-in fade-in duration-200" onClick={(e) => { if (e.target === e.currentTarget) setModalOpen(false) }}>
+          <div className={`bg-white dark:bg-[var(--bg-secondary)] rounded-[32px] shadow-2xl dark:shadow-none w-full border border-slate-200/80 dark:border-[var(--border-accent)] transform transition-[transform,opacity] duration-200 will-change-[transform,opacity] animate-in zoom-in-95 overflow-hidden ${tableroActual?.tipo !== 'Personal' && formConfig.prioridad !== 'Nota' ? 'max-w-[960px]' : 'max-w-lg'}`}>
             <TicketForm
               initialConfig={formConfig}
               onSubmit={handleCrearTicket}
@@ -2515,8 +2892,8 @@ export default function TableroKanban() {
 
       {/* Modal - Gestión de Usuarios (Glassmorphism) */}
       {modalUsuariosOpen && (
-        <div className="fixed inset-0 bg-slate-900/30 dark:bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4 opacity-100 transition-opacity animate-in fade-in duration-300" onClick={(e) => { if (e.target === e.currentTarget) setModalUsuariosOpen(false) }}>
-          <div className="relative bg-white/95 dark:bg-[var(--bg-secondary)] backdrop-blur-3xl dark:backdrop-blur-none rounded-[32px] shadow-[0_25px_70px_-15px_rgba(0,0,0,0.35)] dark:shadow-none w-full max-w-4xl border border-white/80 dark:border-[var(--border-accent)] flex flex-col md:flex-row overflow-hidden animate-in zoom-in-95 duration-300 max-h-[85vh]">
+        <div className="fixed inset-0 bg-slate-900/40 dark:bg-black/80 backdrop-blur-xs flex items-center justify-center z-50 p-4 opacity-100 transition-opacity animate-in fade-in duration-200" onClick={(e) => { if (e.target === e.currentTarget) setModalUsuariosOpen(false) }}>
+          <div className="relative bg-white dark:bg-[var(--bg-secondary)] rounded-[32px] shadow-2xl dark:shadow-none w-full max-w-4xl border border-slate-200/80 dark:border-[var(--border-accent)] flex flex-col md:flex-row overflow-hidden transform transition-[transform,opacity] duration-200 will-change-[transform,opacity] animate-in zoom-in-95 max-h-[85vh]">
 
             {/* Botón X Absoluto en la esquina superior derecha */}
             <button
@@ -2749,12 +3126,12 @@ export default function TableroKanban() {
       )}
 
       {/* Modal - Vista de Detalle (Glassmorphism) */}
-      <div className={`fixed inset-0 bg-slate-900/20 dark:bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4 transition-all duration-300 ${detalleOpen ? 'opacity-100 visible' : 'opacity-0 invisible pointer-events-none'}`} onClick={(e) => { if (e.target === e.currentTarget) setDetalleOpen(false) }}>
+      <div className={`fixed inset-0 bg-slate-900/40 dark:bg-black/80 backdrop-blur-xs flex items-center justify-center z-50 p-4 transition-opacity duration-200 ease-out ${detalleOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`} onClick={(e) => { if (e.target === e.currentTarget) setDetalleOpen(false) }}>
         {ticketActivo && (
           <>
-            <div className={`bg-white/90 dark:bg-[var(--bg-secondary)] backdrop-blur-2xl dark:backdrop-blur-none rounded-[32px] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] dark:shadow-none w-full max-w-[1100px] border border-white/60 dark:border-[var(--border-accent)] transform transition-all duration-300 h-[90vh] max-h-[90vh] flex flex-col md:flex-row overflow-y-auto md:overflow-hidden ${detalleOpen ? 'scale-100 opacity-100' : 'scale-95 opacity-0'}`}>
+            <div className={`bg-white dark:bg-[var(--bg-secondary)] rounded-[32px] shadow-2xl dark:shadow-none w-full max-w-[1100px] border border-slate-200/80 dark:border-[var(--border-accent)] transform transition-[transform,opacity] duration-200 ease-out will-change-[transform,opacity] h-[90vh] max-h-[90vh] flex flex-col md:flex-row overflow-y-auto md:overflow-hidden ${detalleOpen ? 'scale-100 opacity-100' : 'scale-95 opacity-0'}`}>
               {/* ===== COLUMNA IZQUIERDA: Info del ticket ===== */}
-              <div className="flex-1 min-w-0 p-5 md:p-8 md:overflow-y-auto custom-scrollbar flex flex-col">
+              <div className="flex-1 min-w-0 p-5 md:p-8 md:overflow-y-auto custom-scrollbar flex flex-col [contain:content]">
                 <div className="flex items-center justify-between mb-4 md:mb-6">
                   <span className={`text-[10px] md:text-[11px] uppercase tracking-widest font-bold px-2.5 py-1.5 md:px-3 rounded-xl border ${getPrioridadColor(ticketActivo.prioridad)}`}>
                     Prioridad {ticketActivo.prioridad}
@@ -2762,7 +3139,7 @@ export default function TableroKanban() {
                   <div className="flex items-center gap-1.5 md:gap-2">
                     {ticketActivo.prioridad !== 'Nota' && (
                       <span className="text-[10px] md:text-[11px] font-extrabold px-2 py-1.5 md:px-2.5 rounded-xl border border-slate-200 dark:border-[var(--border-accent)] bg-slate-100/80 dark:bg-[var(--bg-secondary)] text-slate-500 dark:text-slate-400 tracking-widest">
-                        #{getNumeroTicket(ticketActivo, tickets)}
+                        #{numerosTicketsMap[ticketActivo.id] || getNumeroTicket(ticketActivo, tickets)}
                       </span>
                     )}
                     {/* Editar y Eliminar */}
@@ -3019,13 +3396,13 @@ export default function TableroKanban() {
 
                 <div className="flex-1 flex flex-col md:overflow-hidden p-4 md:p-6">
                   {/* Lista de Comentarios */}
-                  <div className="flex-1 md:overflow-y-auto custom-scrollbar pr-1 space-y-3 mb-3">
+                  <div className="flex-1 md:overflow-y-auto custom-scrollbar pr-1 space-y-3 mb-3 [contain:content]">
                     {comentarios.length === 0 ? (
                       <div className="h-full flex items-center justify-center text-sm text-slate-400 dark:text-slate-500 italic">
                         No hay comentarios en este ticket aún.
                       </div>
                     ) : (
-                      [...comentarios].reverse().map(c => {
+                      reversedComentarios.map(c => {
                         const isSystemLog = c.texto && (c.texto.startsWith('[AUDITORÍA]:') || c.texto.startsWith('RESOLUCIÓN OFICIAL:') || c.texto.startsWith('[RESOLUCIÓN OFICIAL]:'));
                         const isResolution = c.texto && (c.texto.startsWith('RESOLUCIÓN OFICIAL:') || c.texto.startsWith('[RESOLUCIÓN OFICIAL]:'));
                         const esMio = user && c.usuario_id === user.id && !isSystemLog;
@@ -3054,7 +3431,7 @@ export default function TableroKanban() {
                                       RESOLUCIÓN OFICIAL
                                     </p>
                                     <p className="text-xs font-semibold text-slate-600 dark:text-neutral-300 leading-normal mt-0.5 whitespace-pre-wrap">
-                                      {cleanTexto}
+                                      {renderTextoComentario(cleanTexto, false, false)}
                                     </p>
                                     <span className="text-[9.5px] text-slate-400 dark:text-neutral-500 font-bold mt-1 uppercase tracking-wider">
                                       {userObj?.nombre || 'Sistema'} • {new Date(c.created_at).toLocaleString('es-ES', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
@@ -3075,7 +3452,7 @@ export default function TableroKanban() {
                                 </div>
                                 <div className="flex flex-col min-w-0">
                                   <p className="text-xs font-semibold text-slate-600 dark:text-neutral-300 leading-tight">
-                                    {cleanTexto}
+                                    {renderTextoComentario(cleanTexto, false, false)}
                                   </p>
                                   <span className="text-[9.5px] text-slate-400 dark:text-neutral-500 font-bold mt-0.5">
                                     {userObj?.nombre || 'Sistema'} • {new Date(c.created_at).toLocaleString('es-ES', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
@@ -3105,25 +3482,68 @@ export default function TableroKanban() {
                             </div>
 
                             {isEditing ? (
-                              <div className={`p-3 rounded-2xl text-sm shadow-sm w-full min-w-[200px] ${esMio ? 'bg-blue-500/10 border border-blue-200 rounded-br-sm' : 'bg-white border border-slate-200'}`}>
+                              <div className="relative p-3.5 rounded-2xl text-sm shadow-xl w-full min-w-[260px] md:min-w-[340px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/80">
+                                {renderMentionDropdown('edit')}
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                                    <svg className="w-3.5 h-3.5 text-[#065E94] dark:text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                    </svg>
+                                    Editar comentario
+                                  </span>
+                                  <span className="text-[10px] text-slate-400 dark:text-slate-500">Usa @ para mencionar</span>
+                                </div>
                                 <textarea
                                   autoFocus
+                                  ref={editTextareaRef}
                                   value={textoEditado}
-                                  onChange={(e) => setTextoEditado(e.target.value)}
-                                  className="w-full bg-white/50 border border-blue-200/60 rounded-xl px-3 py-2 text-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-[#065E94]/50 resize-none custom-scrollbar mb-2"
+                                  onChange={(e) => {
+                                    setTextoEditado(e.target.value);
+                                    checkMention(e.target.value, e.target.selectionStart, 'edit');
+                                  }}
+                                  onKeyDown={(e) => handleCommentKeyDown(e, 'edit')}
+                                  className="w-full bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-700/80 rounded-xl px-3.5 py-2.5 text-slate-800 dark:text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-[#065E94]/60 dark:focus:ring-blue-500/60 resize-none custom-scrollbar mb-3 font-medium placeholder-slate-400"
                                   rows="2"
                                 />
-                                <div className="flex justify-end gap-2">
-                                  <button type="button" onClick={() => setComentarioAEditar(null)} className="text-[10px] font-bold text-slate-500 hover:text-slate-700 bg-white px-2 py-1 rounded-md border border-slate-200 shadow-sm transition-colors">Cancelar</button>
-                                  <button type="button" onClick={() => handleGuardarEdicionComentario(c.id)} disabled={!textoEditado.trim()} className="text-[10px] font-bold text-white hover:bg-[#043d63] bg-[#065E94] disabled:opacity-50 px-2 py-1 rounded-md shadow-sm transition-colors">Guardar</button>
+                                <div className="flex justify-end gap-2 items-center">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setComentarioAEditar(null);
+                                      setMentionState(prev => prev.target === 'edit' ? { ...prev, active: false } : prev);
+                                    }}
+                                    className="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                                  >
+                                    Cancelar
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleGuardarEdicionComentario(c.id)}
+                                    disabled={!textoEditado.trim()}
+                                    className="px-4 py-1.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-[#065E94] to-[#043d63] hover:from-[#054b77] hover:to-[#032e4b] shadow-md shadow-[#065E94]/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
+                                  >
+                                    Guardar
+                                  </button>
                                 </div>
                               </div>
                             ) : comentarioAEliminar === c.id ? (
-                              <div className={`p-3 rounded-2xl text-sm shadow-sm w-full min-w-[200px] ${esMio ? 'bg-red-500/10 border border-red-200 rounded-br-sm' : 'bg-red-50 border border-red-200'}`}>
-                                <p className="text-xs font-bold text-red-600 mb-2">¿Eliminar comentario?</p>
-                                <div className="flex justify-end gap-2">
-                                  <button type="button" onClick={() => setComentarioAEliminar(null)} className="text-[10px] font-bold text-slate-500 hover:text-slate-700 bg-white px-2 py-1 rounded-md border border-slate-200 shadow-sm transition-colors">Cancelar</button>
-                                  <button type="button" onClick={() => handleEliminarComentarioConfirmado(c.id)} className="text-[10px] font-bold text-white hover:bg-red-600 bg-red-500 px-2 py-1 rounded-md shadow-sm transition-colors">Sí, eliminar</button>
+                              <div className="p-3.5 rounded-2xl text-sm shadow-md w-full min-w-[220px] bg-red-50/90 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60">
+                                <p className="text-xs font-bold text-red-600 dark:text-red-400 mb-2.5">¿Eliminar este comentario?</p>
+                                <div className="flex justify-end gap-2 items-center">
+                                  <button
+                                    type="button"
+                                    onClick={() => setComentarioAEliminar(null)}
+                                    className="px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-200/60 dark:hover:bg-white/10 transition-colors cursor-pointer"
+                                  >
+                                    Cancelar
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleEliminarComentarioConfirmado(c.id)}
+                                    className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-white bg-red-600 hover:bg-red-700 shadow-md shadow-red-600/30 transition-all cursor-pointer"
+                                  >
+                                    Sí, eliminar
+                                  </button>
                                 </div>
                               </div>
                             ) : (
@@ -3133,7 +3553,7 @@ export default function TableroKanban() {
                                   : 'bg-[#065E94] dark:bg-blue-600/30 text-white rounded-br-sm')
                                 : 'bg-white dark:bg-[var(--bg-secondary)] border border-slate-100 dark:border-transparent text-slate-700 dark:text-neutral-200 rounded-bl-sm'
                                 }`}>
-                                {c.texto && <p className="whitespace-pre-wrap break-words min-w-0">{c.texto}</p>}
+                                {c.texto && <p className="whitespace-pre-wrap break-words min-w-0">{renderTextoComentario(c.texto, esMio, hasImage)}</p>}
 
                                 {c.archivo_url && c.archivo_tipo?.startsWith('image/') && (
                                   <a href={c.archivo_url} target="_blank" rel="noopener noreferrer" className="block mt-1">
@@ -3159,13 +3579,14 @@ export default function TableroKanban() {
 
                   {/* Caja de nuevo comentario */}
                   {/* Caja de nuevo comentario (Desktop) */}
-                  <div className="hidden md:block pt-3 border-t border-slate-200/40 dark:border-[var(--border-accent)]/30 mt-3">
+                  <div className="hidden md:block pt-3 border-t border-slate-200/40 dark:border-[var(--border-accent)]/30 mt-3 relative">
+                    {renderMentionDropdown('desktop')}
                     <form
                       onSubmit={async (e) => {
                         e.preventDefault();
                         if ((!nuevoComentario.trim() && !archivoSeleccionado) || !user) return;
 
-                        const textoInsert = nuevoComentario;
+                        const textoInsert = (nuevoComentario || '').trim();
                         let archivoUrl = null;
                         let archivoNombre = null;
                         let archivoTipo = null;
@@ -3199,6 +3620,7 @@ export default function TableroKanban() {
 
                         setNuevoComentario('');
                         setArchivoSeleccionado(null);
+                        setMentionState({ active: false, query: '', index: 0, target: null, atPosition: -1 });
                         if (fileInputRef.current) fileInputRef.current.value = '';
                         if (fileInputRefMobile.current) fileInputRefMobile.current.value = '';
 
@@ -3223,9 +3645,9 @@ export default function TableroKanban() {
                           ticket_id: ticketActivo.id,
                           usuario_id: user.id,
                           texto: textoInsert,
-                          archivo_url: archivoUrl,
-                          archivo_nombre: archivoNombre,
-                          archivo_tipo: archivoTipo
+                          archivo_url: archivoUrl || '',
+                          archivo_nombre: archivoNombre || '',
+                          archivo_tipo: archivoTipo || ''
                         });
 
                         // Si da error, lo volvemos atras
@@ -3233,6 +3655,9 @@ export default function TableroKanban() {
                           console.error("Error al enviar comentario:", error);
                           alert(`Error al enviar el comentario: ${error.message}`);
                           setComentarios(prev => prev.filter(c => c.id !== comentarioOptimista.id));
+                        } else {
+                          // Notificar menciones si las hubo
+                          notificarMenciones(ticketActivo, textoInsert);
                         }
                       }}
                       className="flex flex-col gap-2"
@@ -3262,11 +3687,24 @@ export default function TableroKanban() {
                         >
                           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
                         </button>
+                        <button
+                          type="button"
+                          onClick={() => handleTriggerMention('desktop')}
+                          className="px-3.5 py-2.5 bg-slate-100 dark:bg-[var(--bg-main)] border border-slate-200/50 dark:border-[var(--border-accent)]/50 text-slate-500 dark:text-neutral-400 hover:text-[#065E94] dark:hover:text-blue-400 hover:bg-slate-200 dark:hover:bg-[#1c1c1c] rounded-xl transition-colors cursor-pointer flex items-center justify-center font-extrabold text-sm"
+                          title="Mencionar miembro del tablero (@)"
+                        >
+                          @
+                        </button>
                         <input
                           type="text"
+                          ref={commentInputRefDesktop}
                           value={nuevoComentario}
-                          onChange={e => setNuevoComentario(e.target.value)}
-                          placeholder="Escribe una resolución o comentario..."
+                          onChange={e => {
+                            setNuevoComentario(e.target.value);
+                            checkMention(e.target.value, e.target.selectionStart, 'desktop');
+                          }}
+                          onKeyDown={e => handleCommentKeyDown(e, 'desktop')}
+                          placeholder="Escribe un comentario... (usa @ para mencionar)"
                           className="flex-1 bg-white dark:bg-[var(--bg-main)] border border-slate-200 dark:border-[var(--border-accent)] rounded-xl px-4 py-2.5 text-sm dark:text-white focus:ring-2 focus:ring-[#065E94]/50 outline-none shadow-sm dark:shadow-none"
                         />
                         <button
@@ -3287,13 +3725,14 @@ export default function TableroKanban() {
               </div>
 
               {/* Caja de nuevo comentario (Mobile Sticky) */}
-              <div className="md:hidden sticky bottom-0 z-45 bg-white/95 dark:bg-[var(--bg-secondary)]/95 backdrop-blur-xl border-t border-slate-200 dark:border-[var(--border-accent)] p-4 w-full shrink-0 shadow-[0_-10px_30px_rgba(0,0,0,0.05)] dark:shadow-none">
+              <div className="md:hidden sticky bottom-0 z-45 bg-white/95 dark:bg-[var(--bg-secondary)]/95 backdrop-blur-xl border-t border-slate-200 dark:border-[var(--border-accent)] p-4 w-full shrink-0 shadow-[0_-10px_30px_rgba(0,0,0,0.05)] dark:shadow-none relative">
+                {renderMentionDropdown('mobile')}
                 <form
                   onSubmit={async (e) => {
                     e.preventDefault();
                     if ((!nuevoComentario.trim() && !archivoSeleccionado) || !user) return;
 
-                    const textoInsert = nuevoComentario;
+                    const textoInsert = (nuevoComentario || '').trim();
                     let archivoUrl = null;
                     let archivoNombre = null;
                     let archivoTipo = null;
@@ -3327,6 +3766,7 @@ export default function TableroKanban() {
 
                     setNuevoComentario('');
                     setArchivoSeleccionado(null);
+                    setMentionState({ active: false, query: '', index: 0, target: null, atPosition: -1 });
                     if (fileInputRef.current) fileInputRef.current.value = '';
                     if (fileInputRefMobile.current) fileInputRefMobile.current.value = '';
 
@@ -3351,9 +3791,9 @@ export default function TableroKanban() {
                       ticket_id: ticketActivo.id,
                       usuario_id: user.id,
                       texto: textoInsert,
-                      archivo_url: archivoUrl,
-                      archivo_nombre: archivoNombre,
-                      archivo_tipo: archivoTipo
+                      archivo_url: archivoUrl || '',
+                      archivo_nombre: archivoNombre || '',
+                      archivo_tipo: archivoTipo || ''
                     });
 
                     // Si da error, lo volvemos atras
@@ -3361,6 +3801,9 @@ export default function TableroKanban() {
                       console.error("Error al enviar comentario:", error);
                       alert(`Error al enviar el comentario: ${error.message}`);
                       setComentarios(prev => prev.filter(c => c.id !== comentarioOptimista.id));
+                    } else {
+                      // Notificar menciones si las hubo
+                      notificarMenciones(ticketActivo, textoInsert);
                     }
                   }}
                   className="flex flex-col gap-2"
@@ -3390,11 +3833,24 @@ export default function TableroKanban() {
                     >
                       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => handleTriggerMention('mobile')}
+                      className="px-3.5 py-2.5 bg-slate-100 dark:bg-[var(--bg-main)] border border-slate-200 dark:border-[var(--border-accent)] text-slate-500 dark:text-neutral-400 hover:text-[#065E94] dark:hover:text-blue-400 hover:bg-slate-200 dark:hover:bg-[#1c1c1c] rounded-xl transition-colors cursor-pointer flex items-center justify-center font-extrabold text-sm"
+                      title="Mencionar miembro (@)"
+                    >
+                      @
+                    </button>
                     <input
                       type="text"
+                      ref={commentInputRefMobile}
                       value={nuevoComentario}
-                      onChange={e => setNuevoComentario(e.target.value)}
-                      placeholder="Escribe una resolución o comentario..."
+                      onChange={e => {
+                        setNuevoComentario(e.target.value);
+                        checkMention(e.target.value, e.target.selectionStart, 'mobile');
+                      }}
+                      onKeyDown={e => handleCommentKeyDown(e, 'mobile')}
+                      placeholder="Comentario... (usa @ para mencionar)"
                       className="flex-1 bg-white dark:bg-[var(--bg-main)] border border-slate-200 dark:border-[var(--border-accent)] rounded-xl px-4 py-2.5 text-sm dark:text-white focus:ring-2 focus:ring-[#065E94]/50 outline-none shadow-sm dark:shadow-none"
                     />
                     <button
@@ -3523,7 +3979,28 @@ export default function TableroKanban() {
               <h3 className="text-xs font-bold text-slate-400 dark:text-neutral-500 uppercase tracking-wider mb-4">Acciones</h3>
               <div className="flex flex-col gap-2 mb-8">
                 {misPermisos.crear_tickets && (
-                  <button onClick={() => { setFormConfig({ id: null, titulo: '', descripcion: '', area: '', prioridad: 'Media', responsables: [], solicitante: '', seccion_solicitante: '', estado: columnasActivas[0] || 'Solicitud' }); setModalOpen(true); setMenuResponsiveAbierto(false); }} className="text-left px-4 py-3 rounded-xl font-bold bg-[#065E94] text-white flex items-center gap-2">
+                  <button onClick={() => {
+                    const parsedBoardConfig = parseTableroConfig(tableroActual?.descripcion);
+                    const colInicialConfigurada = parsedBoardConfig.config?.col_inicial;
+                    const colDestino = (colInicialConfigurada && (columnasActivas || []).includes(colInicialConfigurada))
+                      ? colInicialConfigurada
+                      : ((columnasActivas && columnasActivas.length > 0) ? columnasActivas[0] : 'Solicitud');
+
+                    setFormConfig({
+                      id: null,
+                      titulo: '',
+                      descripcion: '',
+                      area: '',
+                      prioridad: 'Media',
+                      responsables: [],
+                      solicitante: '',
+                      seccion_solicitante: '',
+                      email_solicitante: '',
+                      estado: colDestino
+                    });
+                    setModalOpen(true);
+                    setMenuResponsiveAbierto(false);
+                  }} className="text-left px-4 py-3 rounded-xl font-bold bg-[#065E94] text-white flex items-center gap-2">
                     <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
                     Nuevo Ticket
                   </button>

@@ -248,11 +248,35 @@ class ComentarioSerializer(serializers.ModelSerializer):
         allow_null=True
     )
     usuario_nombre = serializers.SerializerMethodField()
+    texto = serializers.CharField(required=False, allow_blank=True, default='')
+    archivo_url = serializers.CharField(required=False, allow_blank=True, allow_null=True, default='')
+    archivo_nombre = serializers.CharField(required=False, allow_blank=True, allow_null=True, default='')
+    archivo_tipo = serializers.CharField(required=False, allow_blank=True, allow_null=True, default='')
 
     class Meta:
         model = Comentario
-        fields = ['id', 'ticket', 'ticket_id', 'usuario', 'usuario_id', 'usuario_nombre', 'texto', 'created_at']
+        fields = ['id', 'ticket', 'ticket_id', 'usuario', 'usuario_id', 'usuario_nombre', 'texto', 'archivo_url', 'archivo_nombre', 'archivo_tipo', 'created_at']
         read_only_fields = ['ticket', 'usuario']
+
+    def validate(self, attrs):
+        texto = attrs.get('texto', '')
+        if isinstance(texto, str):
+            texto = texto.strip()
+        archivo_url = attrs.get('archivo_url', '')
+        if isinstance(archivo_url, str):
+            archivo_url = archivo_url.strip()
+        elif archivo_url is None:
+            attrs['archivo_url'] = ''
+            archivo_url = ''
+
+        if attrs.get('archivo_nombre') is None:
+            attrs['archivo_nombre'] = ''
+        if attrs.get('archivo_tipo') is None:
+            attrs['archivo_tipo'] = ''
+
+        if not texto and not archivo_url:
+            raise serializers.ValidationError({'texto': 'Debe ingresar un comentario o adjuntar un archivo.'})
+        return attrs
 
     def get_usuario_nombre(self, obj):
         if obj.usuario:

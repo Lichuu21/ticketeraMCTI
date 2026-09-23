@@ -1,11 +1,13 @@
 @import "tailwindcss";
 
-html, body {
+html,
+body {
   height: 100vh;
   margin: 0;
   padding: 0;
   overflow: hidden;
-  background-color: #cbd5e1; /* slate-300 by default */
+  background-color: #cbd5e1;
+  /* slate-300 by default */
 }
 
 #root {
@@ -14,7 +16,10 @@ html, body {
 
 /* Evitar zoom automático en dispositivos móviles (iOS Safari / Android) al hacer foco en recuadros de texto */
 @media screen and (max-width: 768px) {
-  input, select, textarea {
+
+  input,
+  select,
+  textarea {
     font-size: 16px !important;
   }
 }
@@ -34,116 +39,179 @@ html.dark body {
   background-color: var(--bg-main, #111111);
 }
 
-/* Habilitamos el Dark Mode por clases en Tailwind v4 */
+/* Habilitamos el Dark Mode por clases en Tailwind v4 (evita que el SO en modo oscuro active dark: en modo claro) */
+@variant dark (&:where(.dark, .dark *));
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* Asegurar legibilidad y contraste en modo claro al hacer hover sobre las tarjetas de tickets */
+html:not(.dark) .glass-card {
+  background-color: #ffffff !important;
+}
+
+html:not(.dark) .glass-card:hover {
+  background-color: #ffffff !important;
+  border-color: rgba(6, 94, 148, 0.4) !important;
+}
+
+html:not(.dark) .glass-card h3 {
+  color: #1e293b !important;
+}
+
+html:not(.dark) .glass-card .glass-solicitor {
+  background-color: rgba(241, 245, 249, 0.8) !important;
+  border-color: rgba(226, 232, 240, 0.6) !important;
+  color: #1e293b !important;
+}
+
+html:not(.dark) .glass-card .glass-solicitor span {
+  color: #1e293b !important;
+}
+
 @theme {
-    /* Custom User Animations */
-    --animate-fade-down: fade-down 0.4s ease both;
-    --animate-fade-up: fade-up 0.45s ease both;
-    --animate-card-in: card-in 0.4s ease both;
-    --animate-pulse-sync: pulse-sync 2.5s ease-in-out infinite;
+  /* Custom User Animations */
+  --animate-fade-down: fade-down 0.4s ease both;
+  --animate-fade-up: fade-up 0.45s ease both;
+  --animate-card-in: card-in 0.4s ease both;
+  --animate-pulse-sync: pulse-sync 2.5s ease-in-out infinite;
 
-    @keyframes fade-down {
-        from { opacity: 0; transform: translateY(-8px); }
-        to { opacity: 1; transform: translateY(0); }
-    }
-    @keyframes fade-up {
-        from { opacity: 0; transform: translateY(12px); }
-        to { opacity: 1; transform: translateY(0); }
-    }
-    @keyframes card-in {
-        from { opacity: 0; transform: translateY(8px); }
-        to { opacity: 1; transform: translateY(0); }
-    }
-    @keyframes pulse-sync {
-        0%, 100% { opacity: 1; }
-        50% { opacity: 0.25; }
+  @keyframes fade-down {
+    from {
+      opacity: 0;
+      transform: translateY(-8px);
     }
 
-    --animate-gradient-x: gradient-x 15s ease infinite;
-    --animate-fade-in-up: fade-in-up 0.5s ease-out forwards;
-    --animate-float: float 6s ease-in-out infinite;
-    --animate-pulse-glow: pulse-glow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
 
-    @keyframes gradient-x {
-
-        0%,
-        100% {
-            background-position: 0% 50%;
-        }
-
-        50% {
-            background-position: 100% 50%;
-        }
+  @keyframes fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
     }
 
-    @keyframes fade-in-up {
-        from {
-            opacity: 0;
-            transform: translateY(20px);
-        }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
 
-        to {
-            opacity: 1;
-            transform: translateY(0);
-        }
+  @keyframes card-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
     }
 
-    @keyframes float {
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
 
-        0%,
-        100% {
-            transform: translateY(0);
-        }
+  @keyframes pulse-sync {
 
-        50% {
-            transform: translateY(-8px);
-        }
+    0%,
+    100% {
+      opacity: 1;
     }
 
-    @keyframes pulse-glow {
-
-        0%,
-        100% {
-            box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.4);
-        }
-
-        50% {
-            box-shadow: 0 0 0 10px rgba(79, 70, 229, 0);
-        }
+    50% {
+      opacity: 0.25;
     }
+  }
+
+  --animate-gradient-x: gradient-x 15s ease infinite;
+  --animate-fade-in-up: fade-in-up 0.5s ease-out forwards;
+  --animate-float: float 6s ease-in-out infinite;
+  --animate-pulse-glow: pulse-glow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+
+  @keyframes gradient-x {
+
+    0%,
+    100% {
+      background-position: 0% 50%;
+    }
+
+    50% {
+      background-position: 100% 50%;
+    }
+  }
+
+  @keyframes fade-in-up {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes float {
+
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+
+    50% {
+      transform: translateY(-8px);
+    }
+  }
+
+  @keyframes pulse-glow {
+
+    0%,
+    100% {
+      box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.4);
+    }
+
+    50% {
+      box-shadow: 0 0 0 10px rgba(79, 70, 229, 0);
+    }
+  }
 }
 
 /* Custom Scrollbar */
 ::-webkit-scrollbar {
-    width: 6px;
-    height: 10px;
+  width: 6px;
+  height: 10px;
 }
 
 ::-webkit-scrollbar-track {
-    background: transparent;
-    margin-block: 8px; 
-    margin-inline: 8px;
+  background: transparent;
+  margin-block: 8px;
+  margin-inline: 8px;
 }
 
 ::-webkit-scrollbar-thumb {
-    background: #64748b; /* Highly visible slate-500 for light mode */
-    border-radius: 10px;
+  background: #64748b;
+  /* Highly visible slate-500 for light mode */
+  border-radius: 10px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: #475569; /* slate-600 */
+  background: #475569;
+  /* slate-600 */
 }
 
 /* Theme Color Definitions */
 .theme-blue {
-  --bg-main: #0a192f; /* Fondo principal/Main background */
-  --bg-column: #112240; /* Azul marino desaturado para contraste */
-  --bg-card: #1a365d; /* Tarjetas de tickets */
-  --bg-secondary: #112240; /* High contrast panels and modals */
+  --bg-main: #0a192f;
+  /* Fondo principal/Main background */
+  --bg-column: #112240;
+  /* Azul marino desaturado para contraste */
+  --bg-card: #1a365d;
+  /* Tarjetas de tickets */
+  --bg-secondary: #112240;
+  /* High contrast panels and modals */
   --bg-hover: #233554;
-  --border-accent: rgba(100,255,218,0.1); /* Glow accent #64ffda */
+  --border-accent: rgba(100, 255, 218, 0.1);
+  /* Glow accent #64ffda */
 }
 
 .theme-blue body {
@@ -152,8 +220,10 @@ html.dark body {
 
 .theme-dark {
   --bg-main: #111111;
-  --bg-column: #161616; /* Zona columnas dark mode default */
-  --bg-card: #1c1c1c; /* Tarjetas default oscuro */
+  --bg-column: #161616;
+  /* Zona columnas dark mode default */
+  --bg-card: #1c1c1c;
+  /* Tarjetas default oscuro */
   --bg-secondary: #1c1c1c;
   --bg-hover: #2b2b2b;
   --border-accent: #3f3f3f;
@@ -162,55 +232,66 @@ html.dark body {
 /* Dark Mode Scrollbar */
 .dark ::-webkit-scrollbar-track,
 .dark::-webkit-scrollbar-track {
-    background: transparent;
+  background: transparent;
 }
 
 .dark ::-webkit-scrollbar-thumb,
 .dark::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.2);
-    border-radius: 10px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
 }
 
 .dark ::-webkit-scrollbar-thumb:hover,
 .dark::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.3);
 }
 
 .dark ::-webkit-scrollbar-corner,
 .dark::-webkit-scrollbar-corner {
-    background: transparent;
+  background: transparent;
 }
 
 .badge-urgente {
-    background: linear-gradient(90deg, #c2410c, #ea580c, #f59e0b, #ea580c, #c2410c) !important;
-    background-size: 300% 100% !important;
-    animation: fire-shift 2s ease-in-out infinite, urgent-pulse 1.5s infinite;
-    text-shadow: 0 1px 2px rgba(0,0,0,0.3);
-    color: #fff !important;
-    border: none !important;
-    display: inline-block;
+  background: linear-gradient(90deg, #c2410c, #ea580c, #f59e0b, #ea580c, #c2410c) !important;
+  background-size: 300% 100% !important;
+  animation: fire-shift 2s ease-in-out infinite, urgent-pulse 1.5s infinite;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  color: #fff !important;
+  border: none !important;
+  display: inline-block;
 }
 
 @keyframes fire-shift {
-    0%   { background-position: 0% 50%; }
-    50%  { background-position: 100% 50%; }
-    100% { background-position: 0% 50%; }
+  0% {
+    background-position: 0% 50%;
+  }
+
+  50% {
+    background-position: 100% 50%;
+  }
+
+  100% {
+    background-position: 0% 50%;
+  }
 }
 
 @keyframes urgent-pulse {
-    0% {
-        transform: scale(1);
-        box-shadow: 0 0 0 0 rgba(234, 88, 12, 0.8);
-    }
-    50% {
-        transform: scale(1.08);
-        box-shadow: 0 0 0 8px rgba(234, 88, 12, 0);
-    }
-    100% {
-        transform: scale(1);
-        box-shadow: 0 0 0 0 rgba(234, 88, 12, 0);
-    }
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(234, 88, 12, 0.8);
+  }
+
+  50% {
+    transform: scale(1.08);
+    box-shadow: 0 0 0 8px rgba(234, 88, 12, 0);
+  }
+
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(234, 88, 12, 0);
+  }
 }
+
 /* ========================================
    LIQUID GLASS THEME
    ======================================== */
@@ -221,11 +302,11 @@ html.dark body {
 
   /* Required: dark: Tailwind class fallbacks so dragging + buttons work */
   --bg-main: transparent;
-  --bg-secondary: rgba(18, 24, 38, 0.88);
-  --bg-hover: rgba(26, 34, 54, 0.95);
-  --bg-column: rgba(16, 22, 36, 0.88);
-  --bg-card: rgba(24, 32, 50, 0.92);
-  --border-accent: rgba(255, 255, 255, 0.12);
+  --bg-secondary: rgba(0, 0, 0, 0.40);
+  --bg-hover: rgba(0, 0, 0, 0.60);
+  --bg-column: rgba(0, 0, 0, 0.40);
+  --bg-card: rgba(0, 0, 0, 0.45);
+  --border-accent: rgba(255, 255, 255, 0.20);
 }
 
 /* Header text — force white in wallpaper mode and add shadow for readability instead of a dark box */
@@ -233,26 +314,31 @@ html.dark body {
   color: white !important;
   -webkit-text-fill-color: white !important;
   background: none !important;
-  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.8));
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.8));
 }
+
 .theme-wallpaper header p,
 .theme-wallpaper header span:not(.animate-ping):not([class*="bg-emerald"]) {
   color: rgba(255, 255, 255, 0.90) !important;
-  text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
 }
+
 .theme-wallpaper header svg {
   color: rgba(255, 255, 255, 0.90) !important;
-  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.8));
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.8));
 }
+
 .theme-wallpaper header button {
   color: white !important;
-  border-color: rgba(255,255,255,0.3) !important;
+  border-color: rgba(255, 255, 255, 0.3) !important;
   background: rgba(0, 0, 0, 0.4) !important;
   backdrop-filter: blur(8px);
 }
+
 .theme-wallpaper header button:hover {
   background: rgba(0, 0, 0, 0.6) !important;
 }
+
 /* Exception: keep red for logout button */
 .theme-wallpaper header button[title="Cerrar Sesión"],
 .theme-wallpaper header button[title="Cerrar Sesión"] * {
@@ -268,6 +354,7 @@ html.dark body {
   color: transparent !important;
   filter: drop-shadow(0 1px 2px rgba(255, 255, 255, 0.6)) !important;
 }
+
 .theme-light-wallpaper header .text-3xl {
   background: linear-gradient(to right, #065E94, #043d63) !important;
   -webkit-background-clip: text !important;
@@ -276,18 +363,24 @@ html.dark body {
   color: transparent !important;
   filter: none !important;
 }
+
 .theme-light-wallpaper header span:not(.animate-ping) {
-  color: #334155 !important; /* text-slate-700 */
+  color: #334155 !important;
+  /* text-slate-700 */
   text-shadow: 0 1px 2px rgba(255, 255, 255, 0.6) !important;
 }
+
 .theme-light-wallpaper header p {
-  color: #475569 !important; /* text-slate-600 */
+  color: #475569 !important;
+  /* text-slate-600 */
   text-shadow: 0 1px 2px rgba(255, 255, 255, 0.6) !important;
 }
+
 .theme-light-wallpaper header svg {
   color: #334155 !important;
   filter: drop-shadow(0 1px 1px rgba(255, 255, 255, 0.6)) !important;
 }
+
 .theme-light-wallpaper header button,
 .theme-light-wallpaper header input,
 .theme-light-wallpaper header div.cursor-help {
@@ -297,37 +390,34 @@ html.dark body {
   backdrop-filter: blur(8px);
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05) !important;
 }
+
 .theme-light-wallpaper header button:hover,
 .theme-light-wallpaper header div.cursor-help:hover {
   background: rgba(255, 255, 255, 0.75) !important;
   color: #0f172a !important;
 }
+
 .theme-light-wallpaper header input::placeholder {
   color: #64748b !important;
 }
+
 .theme-light-wallpaper header button[title="Cerrar Sesión"],
 .theme-light-wallpaper header button[title="Cerrar Sesión"] * {
-  color: #ef4444 !important; /* dark red logout */
+  color: #ef4444 !important;
+  /* dark red logout */
 }
 
-/* Column container — dark liquid glass panel */
+/* Column container — refined liquid glass panel matching buttons */
 .theme-wallpaper .glass-column {
-  /* Move backdrop-filter to ::before so we don't break react-beautiful-dnd fixed positioning */
-  background: transparent !important;
-  border: 1px solid rgba(255, 255, 255, 0.20) !important;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08) !important;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, rgba(0, 0, 0, 0.36) 20%, rgba(0, 0, 0, 0.48) 100%) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.24) !important;
+  box-shadow: inset 0 1px 1px 0 rgba(255, 255, 255, 0.22) !important;
 }
 
 .theme-wallpaper .glass-column::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: rgba(18, 24, 38, 0.88) !important;
-  backdrop-filter: blur(24px) saturate(180%) brightness(0.95) !important;
-  -webkit-backdrop-filter: blur(24px) saturate(180%) brightness(0.95) !important;
-  z-index: -1;
-  pointer-events: none;
+  display: none !important;
 }
 
 /* Column Header text & count badge in theme-wallpaper */
@@ -338,16 +428,16 @@ html.dark body {
 
 .theme-wallpaper .glass-column span.bg-slate-300\/50,
 .theme-wallpaper .glass-column span[class*="bg-slate"] {
-  background: rgba(255, 255, 255, 0.18) !important;
+  background: rgba(255, 255, 255, 0.16) !important;
   color: #ffffff !important;
-  border: 1px solid rgba(255, 255, 255, 0.25) !important;
-  backdrop-filter: blur(6px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.22) !important;
   box-shadow: none !important;
 }
 
 .theme-wallpaper .glass-column button {
   color: rgba(255, 255, 255, 0.85) !important;
 }
+
 .theme-wallpaper .glass-column button:hover {
   color: #ffffff !important;
   background: rgba(255, 255, 255, 0.15) !important;
@@ -356,8 +446,7 @@ html.dark body {
 /* Empty column container in theme-wallpaper */
 .theme-wallpaper .glass-column div[class*="border-dashed"] {
   background: rgba(255, 255, 255, 0.04) !important;
-  border-color: rgba(255, 255, 255, 0.15) !important;
-  backdrop-filter: blur(10px) !important;
+  border-color: rgba(255, 255, 255, 0.18) !important;
 }
 
 .theme-wallpaper .glass-column div[class*="border-dashed"] p:first-of-type {
@@ -377,19 +466,18 @@ html.dark body {
 
 /* Card — refined liquid glass frosted panel */
 .theme-wallpaper .glass-card {
-  background: rgba(26, 34, 52, 0.92) !important;
-  backdrop-filter: blur(20px) saturate(160%) !important;
-  -webkit-backdrop-filter: blur(20px) saturate(160%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.16) !important;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12) !important;
-  transition: all 0.25s ease !important;
+  background: rgba(0, 0, 0, 0.42) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.14) !important;
+  transition: transform 0.2s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.2s ease, border-color 0.2s ease, background-color 0.2s ease !important;
 }
 
 .theme-wallpaper .glass-card:hover {
-  background: rgba(34, 44, 68, 0.96) !important;
-  border-color: rgba(255, 255, 255, 0.26) !important;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18) !important;
-  /* No !important on transform — lets dnd control position during drag */
+  background: rgba(0, 0, 0, 0.58) !important;
+  border-color: rgba(255, 255, 255, 0.28) !important;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.22) !important;
   transform: translateY(-3px);
 }
 
@@ -435,12 +523,12 @@ html.dark body {
 
 /* Divider line in cards */
 .theme-wallpaper .glass-card [class*="border-t"] {
-  border-color: rgba(255,255,255,0.12) !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
 }
 
 /* Responsible bubbles */
 .theme-wallpaper .glass-card .rounded-full {
-  border-color: rgba(255,255,255,0.20) !important;
+  border-color: rgba(255, 255, 255, 0.20) !important;
 }
 
 /* Fix for unreadable select options in dark/wallpaper mode */
@@ -461,4 +549,3 @@ html.dark body {
 .theme-wallpaper select option:focus {
   background-color: #065E94 !important;
 }
-

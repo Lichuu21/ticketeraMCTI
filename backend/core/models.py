@@ -180,7 +180,10 @@ class Ticket(models.Model):
 class Comentario(models.Model):
     ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name='comentarios')
     usuario = models.ForeignKey(Usuario, on_delete=models.SET_NULL, null=True)
-    texto = models.TextField()
+    texto = models.TextField(blank=True, default='')
+    archivo_url = models.CharField(max_length=500, blank=True, default='')
+    archivo_nombre = models.CharField(max_length=255, blank=True, default='')
+    archivo_tipo = models.CharField(max_length=100, blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

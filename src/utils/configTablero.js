@@ -16,7 +16,11 @@ export function parseTableroConfig(descripcion) {
     }
 
     const text = descripcion.substring(0, startIndex).trimEnd();
-    const configStr = descripcion.substring(startIndex + CONFIG_PREFIX.length, descripcion.indexOf(CONFIG_SUFFIX, startIndex)).trim();
+    const endIndex = descripcion.indexOf(CONFIG_SUFFIX, startIndex);
+    if (endIndex === -1) {
+        return { text: descripcion, config: { req_com: ['Resuelto'] } };
+    }
+    const configStr = descripcion.substring(startIndex + CONFIG_PREFIX.length, endIndex).trim();
     
     let config = { req_com: [] };
     try {
@@ -30,10 +34,5 @@ export function parseTableroConfig(descripcion) {
 
 export function buildTableroConfig(text, config) {
     const cleanText = text ? text.replace(/<!-- CONFIG:.*?-->/gs, '').trimEnd() : '';
-    if (!config || !config.req_com || config.req_com.length === 0) {
-        // If config is empty, we don't need to append anything unless they specifically cleared it
-        // We still append it so it overwrites legacy.
-        return `${cleanText}\n\n${CONFIG_PREFIX}${JSON.stringify(config)}${CONFIG_SUFFIX}`;
-    }
-    return `${cleanText}\n\n${CONFIG_PREFIX}${JSON.stringify(config)}${CONFIG_SUFFIX}`;
+    return `${cleanText}\n\n${CONFIG_PREFIX}${JSON.stringify(config || {})}${CONFIG_SUFFIX}`;
 }

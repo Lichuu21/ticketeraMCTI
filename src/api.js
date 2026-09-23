@@ -12,7 +12,13 @@ async function apiRequest(method, path, body = null) {
   const res = await fetch(`${API_URL}${path}`, opts);
   const data = await res.json();
   if (!res.ok) {
-    const err = new Error(data.error || data.detail || 'Error en la petición');
+    let msg = data.error || data.detail;
+    if (!msg && typeof data === 'object') {
+      msg = Object.entries(data)
+        .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(' ') : v}`)
+        .join(' | ');
+    }
+    const err = new Error(msg || 'Error en la petición');
     err.status = res.status;
     err.data = data;
     throw err;
