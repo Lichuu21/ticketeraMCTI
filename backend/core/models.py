@@ -197,7 +197,10 @@ class Comentario(models.Model):
     ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name='comentarios', verbose_name="Ticket")
     usuario = models.ForeignKey(Usuario, on_delete=models.SET_NULL, null=True, verbose_name="Usuario")
     texto = models.TextField(verbose_name="Comentario")
-    created_at = models.DateTimeField(auto_now_add=True)
+    archivo_url = models.CharField(max_length=500, blank=True, default='', verbose_name="URL del Archivo")
+    archivo_nombre = models.CharField(max_length=255, blank=True, default='', verbose_name="Nombre del Archivo")
+    archivo_tipo = models.CharField(max_length=100, blank=True, default='', verbose_name="Tipo del Archivo")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de Creación")
 
     class Meta:
         db_table = 'comentarios'

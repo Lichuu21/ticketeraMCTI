@@ -3,7 +3,7 @@ import * as XLSX from 'xlsx';
 import api from '../api';
 
 export default function ModalHerramientasComplementarias({ isOpen, onClose, tableros = [], onDataUpdated }) {
-  const [activeTab, setActiveTab] = useState('excel'); // 'excel' | 'shortcuts'
+  const [activeTab, setActiveTab] = useState('excel'); // 'excel' | 'shortcuts' | 'intranet'
 
   // Estados de Exportación
   const [exportTableroId, setExportTableroId] = useState('');
@@ -362,7 +362,7 @@ export default function ModalHerramientasComplementarias({ isOpen, onClose, tabl
       className="fixed inset-0 bg-slate-900/40 dark:bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4 transition-all duration-300"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="bg-white dark:bg-[#0f172a] rounded-[28px] shadow-2xl w-full max-w-4xl border border-slate-200 dark:border-white/10 overflow-hidden flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-200">
+      <div className="bg-white dark:bg-[#0f172a] rounded-[28px] shadow-2xl w-full max-w-4xl border border-slate-200 dark:border-white/10 overflow-hidden flex flex-col min-h-[690px] max-h-[92vh] animate-in fade-in zoom-in-95 duration-200">
         {/* Header Modal */}
         <div className="flex justify-between items-center px-6 py-5 border-b border-slate-100 dark:border-white/10 bg-slate-50/50 dark:bg-white/[0.02]">
           <div className="flex items-center gap-3">
@@ -393,36 +393,83 @@ export default function ModalHerramientasComplementarias({ isOpen, onClose, tabl
         </div>
 
         {/* Tabs de Navegación */}
-        <div className="flex border-b border-slate-100 dark:border-white/10 px-6 bg-white dark:bg-[#0f172a]">
+        <div className="flex border-b border-slate-100 dark:border-white/10 px-6 bg-white dark:bg-[#0f172a] gap-2 overflow-x-auto custom-scrollbar">
           <button
             onClick={() => setActiveTab('excel')}
-            className={`py-3.5 px-4 text-sm font-bold flex items-center gap-2 border-b-2 transition-all cursor-pointer ${activeTab === 'excel'
+            className={`py-2 px-3.5 border-b-2 transition-all cursor-pointer shrink-0 flex flex-col items-center justify-center gap-0.5 ${activeTab === 'excel'
               ? 'border-[#065E94] text-[#065E94] dark:border-blue-400 dark:text-blue-400'
               : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
               }`}
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-            Excel (Importar / Exportar)
+            <div className="flex items-center gap-1.5 text-xs font-bold">
+              <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <span>Excel (Importar / Exportar)</span>
+            </div>
+            <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"></span>
+              Disponible
+            </span>
           </button>
+
           <button
             onClick={() => setActiveTab('shortcuts')}
-            className={`py-3.5 px-4 text-sm font-bold flex items-center gap-2 border-b-2 transition-all cursor-pointer ${activeTab === 'shortcuts'
+            className={`py-2 px-3.5 border-b-2 transition-all cursor-pointer shrink-0 flex flex-col items-center justify-center gap-0.5 ${activeTab === 'shortcuts'
               ? 'border-[#065E94] text-[#065E94] dark:border-blue-400 dark:text-blue-400'
               : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
               }`}
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
-            Accesos Directos y Utilidades
+            <div className="flex items-center gap-1.5 text-xs font-bold">
+              <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              <span>Accesos Directos y Utilidades</span>
+            </div>
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-full text-[9px] font-extrabold uppercase tracking-wider bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800/40">
+              <svg className="w-2.5 h-2.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+              Próximamente
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('intranet')}
+            className={`py-2 px-3.5 border-b-2 transition-all cursor-pointer shrink-0 flex flex-col items-center justify-center gap-0.5 ${activeTab === 'intranet'
+              ? 'border-[#065E94] text-[#065E94] dark:border-blue-400 dark:text-blue-400'
+              : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+              }`}
+          >
+            <div className="flex items-center gap-1.5 text-xs font-bold">
+              <span
+                className="w-3.5 h-3.5 shrink-0 bg-current inline-block"
+                style={{
+                  maskImage: 'url(/logo-pba.png)',
+                  maskSize: 'contain',
+                  maskRepeat: 'no-repeat',
+                  maskPosition: 'center',
+                  WebkitMaskImage: 'url(/logo-pba.png)',
+                  WebkitMaskSize: 'contain',
+                  WebkitMaskRepeat: 'no-repeat',
+                  WebkitMaskPosition: 'center',
+                }}
+                aria-hidden="true"
+              />
+              <span>Intranet</span>
+            </div>
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-full text-[9px] font-extrabold uppercase tracking-wider bg-blue-50 text-[#065E94] dark:bg-blue-950/40 dark:text-blue-300 border border-blue-200 dark:border-blue-800/40">
+              <svg className="w-2.5 h-2.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+              Próximamente
+            </span>
           </button>
         </div>
 
         {/* Contenido Principal con Scroll */}
-        <div className="p-6 md:p-8 overflow-y-auto flex-1 custom-scrollbar space-y-8">
-          {activeTab === 'excel' ? (
+        <div className="p-6 md:p-8 overflow-y-auto flex-1 custom-scrollbar flex flex-col min-h-[490px]">
+          {activeTab === 'excel' && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               {/* ── SECCIÓN 1: EXPORTACIÓN ── */}
               <div className="bg-slate-50 dark:bg-white/[0.02] border border-slate-200/80 dark:border-white/10 rounded-2xl p-6 flex flex-col justify-between">
@@ -633,73 +680,74 @@ export default function ModalHerramientasComplementarias({ isOpen, onClose, tabl
                 </div>
               </div>
             </div>
-          ) : (
-            /* ── SECCIÓN 3: ACCESOS DIRECTOS Y UTILIDADES ── */
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-slate-50 dark:bg-white/[0.02] border border-slate-200/80 dark:border-white/10 rounded-2xl p-5">
-                  <div className="flex items-center gap-3 mb-2.5">
-                    <div className="w-8 h-8 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 flex items-center justify-center border border-amber-200/50 dark:border-amber-800/30">
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                      </svg>
-                    </div>
-                    <h4 className="text-sm font-bold text-slate-800 dark:text-white">
-                      Versión Beta
-                    </h4>
-                  </div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                    Esta versión está en fase activa previa a la próxima actualización del sistema. Te recomendamos exportar tus tableros periódicamente a Excel como copia de resguardo.
-                  </p>
-                </div>
+          )}
 
-                <div className="bg-slate-50 dark:bg-white/[0.02] border border-slate-200/80 dark:border-white/10 rounded-2xl p-5">
-                  <div className="flex items-center gap-3 mb-2.5">
-                    <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 flex items-center justify-center border border-indigo-200/50 dark:border-indigo-800/30">
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    </div>
-                    <h4 className="text-sm font-bold text-slate-800 dark:text-white">
-                      Reasignación de Columnas
-                    </h4>
-                  </div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                    Al importar tickets desde Excel, si una columna especificada en el archivo no existe en el tablero, el sistema asignará el ticket a la primera columna disponible para no perder información.
-                  </p>
+          {activeTab === 'shortcuts' && (
+            <div className="flex-1 flex flex-col items-center justify-center py-12 px-4 text-center space-y-5 animate-in fade-in zoom-in-95 duration-200 my-auto">
+              <div className="relative">
+                <div className="w-20 h-20 rounded-3xl bg-amber-50 dark:bg-amber-950/30 flex items-center justify-center border-2 border-amber-200 dark:border-amber-700/40 text-amber-600 dark:text-amber-400 shadow-lg shadow-amber-500/10">
+                  <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
                 </div>
+              </div>
 
-                <div className="bg-slate-50 dark:bg-white/[0.02] border border-slate-200/80 dark:border-white/10 rounded-2xl p-5">
-                  <div className="flex items-center gap-3 mb-2.5">
-                    <div className="w-8 h-8 rounded-xl bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 flex items-center justify-center border border-purple-200/50 dark:border-purple-800/30">
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                    </div>
-                    <h4 className="text-sm font-bold text-slate-800 dark:text-white">
-                      Subtareas en Excel
-                    </h4>
-                  </div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                    Puedes incluir subtareas en tu archivo Excel separando cada una con una barra vertical (ejemplo: <code>Tarea 1 | Tarea 2 | Tarea 3</code>). El sistema las convertirá automáticamente en ítems de checklist.
-                  </p>
+              <div className="max-w-md space-y-2">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold uppercase tracking-wider bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300 border border-amber-200 dark:border-amber-800/50">
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Próximamente
                 </div>
+                <h3 className="text-2xl font-extrabold text-slate-800 dark:text-white">
+                  Accesos Directos y Utilidades
+                </h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed font-medium">
+                  Esta sección se encuentra en desarrollo. Próximamente incluirá accesos rápidos a reportes analíticos, atajos de sistema y herramientas.
+                </p>
+              </div>
+            </div>
+          )}
 
-                <div className="bg-slate-50 dark:bg-white/[0.02] border border-slate-200/80 dark:border-white/10 rounded-2xl p-5">
-                  <div className="flex items-center gap-3 mb-2.5">
-                    <div className="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-[#065E94] dark:text-blue-400 flex items-center justify-center border border-blue-200/50 dark:border-blue-800/30">
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                      </svg>
-                    </div>
-                    <h4 className="text-sm font-bold text-slate-800 dark:text-white">
-                      Próximas Integraciones
-                    </h4>
-                  </div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                    En este espacio se incorporarán accesos directos rápidos a reportes analíticos, conectores de correo electrónico y utilidades avanzadas de mesa de ayuda.
-                  </p>
+          {activeTab === 'intranet' && (
+            <div className="flex-1 flex flex-col items-center justify-center py-12 px-4 text-center space-y-5 animate-in fade-in zoom-in-95 duration-200 my-auto">
+              <div className="relative">
+                <div className="w-20 h-20 rounded-3xl bg-[#065E94]/10 dark:bg-blue-500/10 flex items-center justify-center border-2 border-blue-200 dark:border-blue-800/40 p-3 shadow-lg shadow-[#065E94]/10 dark:shadow-none">
+                  <div
+                    className="w-12 h-12 bg-[#065E94] dark:bg-blue-400"
+                    style={{
+                      maskImage: 'url(/logo-pba.png)',
+                      maskSize: 'contain',
+                      maskRepeat: 'no-repeat',
+                      maskPosition: 'center',
+                      WebkitMaskImage: 'url(/logo-pba.png)',
+                      WebkitMaskSize: 'contain',
+                      WebkitMaskRepeat: 'no-repeat',
+                      WebkitMaskPosition: 'center',
+                    }}
+                    title="Provincia de Buenos Aires"
+                  />
                 </div>
+                <div className="absolute -bottom-1.5 -right-1.5 w-7 h-7 rounded-full bg-[#065E94] dark:bg-blue-600 text-white flex items-center justify-center shadow-md border-2 border-white dark:border-slate-900">
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
+                </div>
+              </div>
+
+              <div className="max-w-md space-y-2">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold uppercase tracking-wider bg-blue-50 text-[#065E94] dark:bg-blue-950/50 dark:text-blue-300 border border-blue-200 dark:border-blue-800/50">
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
+                  Próximamente
+                </div>
+                <h3 className="text-2xl font-extrabold text-slate-800 dark:text-white">
+                  Intranet de la Provincia de Buenos Aires
+                </h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed font-medium">
+                  Espacio reservado para la integración del sistema interno de Gestión de Stock de la Provincia de Buenos Aires. Esta funcionalidad estará habilitada próximamente.
+                </p>
               </div>
             </div>
           )}

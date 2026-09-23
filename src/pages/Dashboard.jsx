@@ -369,9 +369,9 @@ export default function Dashboard() {
     <div className="h-screen overflow-y-auto p-6 sm:p-12 bg-slate-50 dark:bg-black transition-colors duration-300 font-sans">
       <div className="max-w-6xl mx-auto">
         <header className="flex justify-between items-center mb-6">
-          <div className="flex items-center gap-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-1.5 sm:gap-4">
             <div
-              className="h-14 sm:h-18 w-11 sm:w-14 bg-[#065E94] dark:bg-white shrink-0 transition-colors duration-300"
+              className="h-12 sm:h-18 w-10 sm:w-14 bg-[#065E94] dark:bg-white shrink-0 transition-colors duration-300"
               style={{
                 maskImage: 'url(/logo-pba.png)',
                 maskSize: 'contain',
@@ -384,7 +384,7 @@ export default function Dashboard() {
               }}
               title="Provincia de Buenos Aires"
             />
-            <h1 className="text-3xl font-extrabold text-slate-800 dark:text-white tracking-tight">Tus Tableros</h1>
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-800 dark:text-white tracking-tight whitespace-nowrap">Tus Tableros</h1>
           </div>
           <div className="flex items-center gap-3">
             <button
@@ -678,6 +678,9 @@ export default function Dashboard() {
                               if (reqComentarios.includes(oldColName)) {
                                 setReqComentarios(reqComentarios.map(c => c === oldColName ? newColName : c));
                               }
+                              if (colInicial === oldColName) {
+                                setColInicial(newColName);
+                              }
                             }}
                             placeholder={`Columna ${idx + 1}`}
                             className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white caret-[#065E94] dark:caret-blue-400 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-[#065E94]/50 outline-none transition-all cursor-text select-text placeholder:text-slate-400 dark:placeholder:text-slate-500"
@@ -759,7 +762,7 @@ export default function Dashboard() {
                     </div>
                     <div className="space-y-1">
                       <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 leading-relaxed">
-                        Los tickets nuevos irán automáticamente a la columna <span className="font-extrabold text-[#065E94] dark:text-blue-400 font-mono bg-blue-50 dark:bg-black/40 px-2 py-0.5 rounded-md border border-blue-200/80 dark:border-white/10 shadow-xs">"{colInicial || (nuevoColumnas[0] || 'Solicitud')}"</span>. Si deseas que vayan a otra de las columnas elígela debajo.
+                        Los tickets nuevos irán automáticamente a la columna <span className="font-extrabold text-[#065E94] dark:text-blue-400 font-mono bg-blue-50 dark:bg-black/40 px-2 py-0.5 rounded-md border border-blue-200/80 dark:border-white/10 shadow-xs">"{colInicial || (nuevoColumnas.find(c => c.trim() !== '') || 'Solicitud')}"</span>. Si deseas que vayan a otra de las columnas elígela debajo.
                       </p>
                     </div>
                   </div>
@@ -771,7 +774,7 @@ export default function Dashboard() {
                     </label>
                     <div className="relative">
                       <select
-                        value={colInicial || (nuevoColumnas[0] || '')}
+                        value={colInicial || (nuevoColumnas.find(c => c.trim() !== '') || '')}
                         onChange={(e) => setColInicial(e.target.value)}
                         className="w-full appearance-none bg-slate-50 dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-700 hover:border-[#065E94] dark:hover:border-blue-400 text-slate-800 dark:text-white font-extrabold text-sm rounded-xl px-4 py-3 pr-10 focus:ring-2 focus:ring-[#065E94]/40 focus:border-[#065E94] outline-none transition-all shadow-sm cursor-pointer"
                       >
