@@ -24,20 +24,22 @@ class UserManager(BaseUserManager):
 
 
 class Rol(models.Model):
-    nombre = models.CharField(max_length=100, unique=True)
-    tableros = models.ManyToManyField('Tablero', blank=True, related_name='roles')
-    permisos = models.JSONField(default=dict, blank=True, help_text="Permisos por defecto asignados a usuarios con este rol (JSON)")
+    nombre = models.CharField(max_length=100, unique=True, verbose_name="Nombre del Rol")
+    tableros = models.ManyToManyField('Tablero', blank=True, related_name='roles', verbose_name="Tableros Asociados")
+    permisos = models.JSONField(default=dict, blank=True, verbose_name="Permisos por Defecto", help_text="Permisos por defecto asignados a usuarios con este rol (JSON)")
 
     class Meta:
         db_table = 'roles'
         ordering = ['nombre']
+        verbose_name = 'Rol'
+        verbose_name_plural = 'Roles'
 
     def __str__(self):
         return self.nombre
 
 
 class Group(models.Model):
-    nombre = models.CharField(max_length=100, unique=True)
+    nombre = models.CharField(max_length=100, unique=True, verbose_name="Nombre del Grupo")
 
     class Meta:
         db_table = 'grupos'
@@ -50,17 +52,17 @@ class Group(models.Model):
 
 
 class Usuario(AbstractBaseUser, PermissionsMixin):
-    nombre = models.CharField(max_length=200)
-    apellido = models.CharField(max_length=200)
-    username = models.CharField(max_length=150, unique=True, blank=True, default='')
-    email = models.EmailField(unique=True)
-    dependencia = models.CharField(max_length=200, blank=True, default='')
-    debe_cambiar_password = models.BooleanField(default=True)
-    is_active = models.BooleanField(default=True)
-    is_superuser = models.BooleanField(default=False)
-    roles = models.ManyToManyField(Rol, blank=True, related_name='usuarios')
-    groups = models.ManyToManyField(Group, blank=True, related_name='usuarios')
-    date_joined = models.DateTimeField(default=timezone.now)
+    nombre = models.CharField(max_length=200, verbose_name="Nombre")
+    apellido = models.CharField(max_length=200, verbose_name="Apellido")
+    username = models.CharField(max_length=150, unique=True, blank=True, default='',verbose_name="Nombre de Usuario")
+    email = models.EmailField(unique=True, verbose_name="Correo Electrónico")
+    dependencia = models.CharField(max_length=200, blank=True, default='', verbose_name="Dependencia")
+    debe_cambiar_password = models.BooleanField(default=True, verbose_name="Debe Cambiar Contraseña")
+    is_active = models.BooleanField(default=True, verbose_name="Esta Activo")
+    is_superuser = models.BooleanField(default=False, verbose_name="Es Supervisor")
+    roles = models.ManyToManyField(Rol, blank=True, related_name='usuarios', verbose_name="Roles")
+    groups = models.ManyToManyField(Group, blank=True, related_name='usuarios', verbose_name="Grupos")
+    date_joined = models.DateTimeField(default=timezone.now, verbose_name="Fecha de Creacion")
 
     objects = UserManager()
 
@@ -96,13 +98,13 @@ class Usuario(AbstractBaseUser, PermissionsMixin):
 
 
 class SiteSetting(models.Model):
-    nombre_sistema = models.CharField(max_length=200, default='Ticketera MCTI')
-    nombre_corto = models.CharField(max_length=50, default='Ticketera')
-    logo_pequeño = models.FileField(upload_to='config/', blank=True, default='')
-    logo_grande = models.FileField(upload_to='config/', blank=True, default='')
-    color_logo = models.CharField(max_length=7, default='#065E94')
-    color_fondo_logo = models.CharField(max_length=7, default='#FFFFFF')
-    color_sitio = models.CharField(max_length=7, default='#065E94')
+    nombre_sistema = models.CharField(max_length=200, default='Ticketera MCTI', verbose_name="Nombre del Sistema")
+    nombre_corto = models.CharField(max_length=50, default='Ticketera', verbose_name="Nombre Corto")
+    logo_pequeño = models.FileField(upload_to='config/', blank=True, default='', verbose_name="Logo Pequeño")
+    logo_grande = models.FileField(upload_to='config/', blank=True, default='', verbose_name="Logo Grande")
+    color_logo = models.CharField(max_length=7, default='#065E94', verbose_name="Color del Logo")
+    color_fondo_logo = models.CharField(max_length=7, default='#FFFFFF', verbose_name="Color de Fondo del Logo")
+    color_sitio = models.CharField(max_length=7, default='#065E94', verbose_name="Color del Sitio")
     max_file_size_mb = models.IntegerField(default=10, verbose_name='Tamaño máximo de archivo (MB)')
     allowed_file_types = models.JSONField(default=list, verbose_name='Tipos de archivo permitidos')
 
@@ -125,17 +127,19 @@ class SiteSetting(models.Model):
 
 
 class Tablero(models.Model):
-    nombre = models.CharField(max_length=200)
-    descripcion = models.TextField(blank=True, default='')
-    creador = models.ForeignKey(Usuario, on_delete=models.CASCADE, related_name='tableros_creados')
-    tipo = models.CharField(max_length=50, default='Trabajo')
-    columnas = models.JSONField(default=list)
-    wallpaper_path = models.CharField(max_length=500, blank=True, default='')
-    created_at = models.DateTimeField(auto_now_add=True)
+    nombre = models.CharField(max_length=200, verbose_name="Nombre del Tablero")
+    descripcion = models.TextField(blank=True, default='', verbose_name="Descripción")
+    creador = models.ForeignKey(Usuario, on_delete=models.CASCADE, related_name='tableros_creados', verbose_name="Creador")
+    tipo = models.CharField(max_length=50, default='Trabajo', verbose_name="Tipo de Tablero")
+    columnas = models.JSONField(default=list, verbose_name="Columnas")
+    wallpaper_path = models.CharField(max_length=500, blank=True, default='', verbose_name="Ruta del Fondo de Pantalla")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de Creación")
 
     class Meta:
         db_table = 'tableros'
         ordering = ['-created_at']
+        verbose_name = 'Tablero'
+        verbose_name_plural = 'Tableros'
 
     def __str__(self):
         return self.nombre
@@ -147,63 +151,85 @@ class TableroUsuario(models.Model):
         ('Miembro', 'Miembro'),
     ]
 
-    tablero = models.ForeignKey(Tablero, on_delete=models.CASCADE)
-    usuario = models.ForeignKey(Usuario, on_delete=models.CASCADE)
-    rol_en_tablero = models.CharField(max_length=20, choices=ROL_CHOICES, default='Miembro')
-    permisos = models.JSONField(null=True, blank=True)
+    tablero = models.ForeignKey(Tablero, on_delete=models.CASCADE, verbose_name="Tablero")
+    usuario = models.ForeignKey(Usuario, on_delete=models.CASCADE, verbose_name="Usuario")
+    rol_en_tablero = models.CharField(max_length=20, choices=ROL_CHOICES, default='Miembro', verbose_name="Rol en el Tablero")
+    permisos = models.JSONField(null=True, blank=True, verbose_name="Permisos")
 
     class Meta:
         db_table = 'tablero_usuarios'
         unique_together = ('tablero', 'usuario')
+        verbose_name = 'Usuario de Tablero'
+        verbose_name_plural = 'Usuarios de Tableros'
+
+    def __str__(self):
+        return f"{self.usuario} - {self.tablero} ({self.rol_en_tablero})"
+
 
 
 class Ticket(models.Model):
-    titulo = models.CharField(max_length=300)
-    descripcion = models.TextField(blank=True, default='')
-    estado = models.CharField(max_length=100, default='Solicitud')
-    prioridad = models.CharField(max_length=50, default='Media')
-    area = models.CharField(max_length=100, blank=True, default='')
-    responsable = models.CharField(max_length=500, blank=True, default='')
-    solicitante = models.CharField(max_length=200, blank=True, default='')
-    seccion_solicitante = models.CharField(max_length=200, blank=True, default='')
-    email_solicitante = models.CharField(max_length=200, blank=True, default='')
-    tablero = models.ForeignKey(Tablero, on_delete=models.CASCADE, related_name='tickets')
-    checklist = models.JSONField(default=list)
-    fecha_creacion = models.DateTimeField(default=timezone.now)
-    posicion = models.IntegerField(default=0)
+    titulo = models.CharField(max_length=300, verbose_name="Título")
+    descripcion = models.TextField(blank=True, default='', verbose_name="Descripción")
+    estado = models.CharField(max_length=100, default='Solicitud', verbose_name="Estado")
+    prioridad = models.CharField(max_length=50, default='Media', verbose_name="Prioridad")
+    area = models.CharField(max_length=100, blank=True, default='', verbose_name="Área")
+    responsable = models.CharField(max_length=500, blank=True, default='', verbose_name="Responsable")
+    solicitante = models.CharField(max_length=200, blank=True, default='', verbose_name="Solicitante")
+    seccion_solicitante = models.CharField(max_length=200, blank=True, default='', verbose_name="Sección del Solicitante")
+    email_solicitante = models.CharField(max_length=200, blank=True, default='', verbose_name="Correo del Solicitante")
+    tablero = models.ForeignKey(Tablero, on_delete=models.CASCADE, related_name='tickets', verbose_name="Tablero")
+    checklist = models.JSONField(default=list, verbose_name="Lista de Tareas (Checklist)")
+    fecha_creacion = models.DateTimeField(default=timezone.now, verbose_name="Fecha de Creación")
+    posicion = models.IntegerField(default=0, verbose_name="Posición")
 
     class Meta:
         db_table = 'tickets'
         ordering = ['posicion', '-fecha_creacion']
+        verbose_name = 'Ticket'
+        verbose_name_plural = 'Tickets'
+
+    def __str__(self):
+        return self.titulo
+
 
 
 class Comentario(models.Model):
-    ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name='comentarios')
-    usuario = models.ForeignKey(Usuario, on_delete=models.SET_NULL, null=True)
-    texto = models.TextField()
+    ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name='comentarios', verbose_name="Ticket")
+    usuario = models.ForeignKey(Usuario, on_delete=models.SET_NULL, null=True, verbose_name="Usuario")
+    texto = models.TextField(verbose_name="Comentario")
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         db_table = 'comentarios'
         ordering = ['created_at']
+        verbose_name = 'Comentario'
+        verbose_name_plural = 'Comentarios'
+
+    def __str__(self):
+        return f"Comentario de {self.usuario} en {self.ticket}"
 
 
 class Notificacion(models.Model):
-    usuario = models.ForeignKey(Usuario, on_delete=models.CASCADE)
-    ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE)
-    mensaje = models.CharField(max_length=500)
-    leida = models.BooleanField(default=False)
-    created_at = models.DateTimeField(auto_now_add=True)
+    usuario = models.ForeignKey(Usuario, on_delete=models.CASCADE, verbose_name="Usuario")
+    ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, verbose_name="Ticket")
+    mensaje = models.CharField(max_length=500, verbose_name="Mensaje")
+    leida = models.BooleanField(default=False, verbose_name="Leída")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de Creación")
 
     class Meta:
         db_table = 'notificaciones'
         ordering = ['-created_at']
+        verbose_name = 'Notificación'
+        verbose_name_plural = 'Notificaciones'
+
+    def __str__(self):
+        return self.mensaje
 
 
 class WallpaperGroup(models.Model):
-    nombre = models.CharField(max_length=100, unique=True)
-    icono = models.CharField(max_length=50, blank=True, default='')
-    orden = models.IntegerField(default=0)
+    nombre = models.CharField(max_length=100, unique=True, verbose_name="Nombre del Grupo")
+    icono = models.CharField(max_length=50, blank=True, default='', verbose_name="Ícono")
+    orden = models.IntegerField(default=0, verbose_name="Orden")
 
     class Meta:
         db_table = 'wallpaper_groups'
@@ -216,16 +242,18 @@ class WallpaperGroup(models.Model):
 
 
 class Wallpaper(models.Model):
-    nombre = models.CharField(max_length=150, unique=True)
+    nombre = models.CharField(max_length=150, unique=True, verbose_name="Nombre del Wallpaper")
     group = models.ForeignKey(WallpaperGroup, on_delete=models.CASCADE, related_name='wallpapers', verbose_name='Grupo')
-    imagen = models.FileField(upload_to='wallpapers/')
-    thumb = models.FileField(upload_to='wallpapers/thumbs/', blank=True, default='')
-    activo = models.BooleanField(default=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+    imagen = models.FileField(upload_to='wallpapers/', verbose_name="Imagen")
+    thumb = models.FileField(upload_to='wallpapers/thumbs/', blank=True, default='', verbose_name="Miniatura (Thumb)")
+    activo = models.BooleanField(default=True, verbose_name="Activo")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de Creación")
 
     class Meta:
         db_table = 'wallpapers'
         ordering = ['group__orden', 'nombre']
+        verbose_name = 'Wallpaper'
+        verbose_name_plural = 'Wallpapers'
 
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
