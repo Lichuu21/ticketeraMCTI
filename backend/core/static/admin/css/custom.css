@@ -36,3 +36,6 @@
 .sidebar-collapse .main-header {
     margin-left: 69px !important;
 }
+.sidebar-expand-lg.sidebar-open .sidebar-overlay {
+    background-color: unset;
+}

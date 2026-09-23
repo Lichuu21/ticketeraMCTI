@@ -10,6 +10,7 @@ DEBUG = os.environ.get('DJANGO_DEBUG', 'True') == 'True'
 ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS', '*').split(',')
 
 INSTALLED_APPS = [
+    'core',
     'jazzmin',
     'django.contrib.admin',
     'django.contrib.auth',
@@ -20,7 +21,6 @@ INSTALLED_APPS = [
     'rest_framework',
     'corsheaders',
     'django_filters',
-    'core',
     'api',
 ]
 
@@ -134,7 +134,7 @@ JAZZMIN_SETTINGS = {
     },
     'default_icon_parents': 'fas fa-folder',
     'default_icon_children': 'fas fa-circle',
-    'related_modal_active': True,
+    'related_modal_active': False,
     'use_google_fonts': True,
     'navigation_expanded': True,
     'order_with_respect_to': ['auth', 'core'],
