@@ -3,6 +3,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   LineChart, Line, Legend, AreaChart, Area, Cell
 } from 'recharts';
+import { ARG_TIMEZONE } from '../utils/date';
 
 const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
@@ -315,7 +316,7 @@ export default function EstadisticasPanel({ tickets, usuarios, themeMode = 'dark
     const periodoLabel = mesSeleccionado === 'todos'
       ? `Año ${anioSeleccionado} — Todos los meses`
       : `${MESES[parseInt(mesSeleccionado)]} ${anioSeleccionado}`;
-    const fechaEmision = new Date().toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' });
+    const fechaEmision = new Date().toLocaleDateString('es-AR', { timeZone: ARG_TIMEZONE, day: '2-digit', month: 'long', year: 'numeric' });
 
     // ─── Helpers SVG (graficos sin librerias externas) ───────────
     const W = 740, H = 220, PAD = { top: 20, right: 20, bottom: 40, left: 40 };
@@ -833,7 +834,7 @@ export default function EstadisticasPanel({ tickets, usuarios, themeMode = 'dark
             <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: '11px', margin: '8px 0 0' }}>
               Período:&nbsp;<strong style={{ color: '#ffffff' }}>{anioSeleccionado}</strong>
               &nbsp;&nbsp;|&nbsp;&nbsp;
-              Emitido:&nbsp;<strong style={{ color: '#ffffff' }}>{new Date().toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' })}</strong>
+              Emitido:&nbsp;<strong style={{ color: '#ffffff' }}>{new Date().toLocaleDateString('es-AR', { timeZone: ARG_TIMEZONE, day: '2-digit', month: 'long', year: 'numeric' })}</strong>
             </p>
           </div>
         </div>

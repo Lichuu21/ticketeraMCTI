@@ -1,4 +1,6 @@
 FROM node:20-alpine AS build
+ENV TZ=America/Argentina/Buenos_Aires
+RUN apk add --no-cache tzdata
 WORKDIR /app
 ARG VITE_N8N_WEBHOOK_URL=https://n8n.efectohost.com/webhook/crear-ticket
 ENV VITE_N8N_WEBHOOK_URL=$VITE_N8N_WEBHOOK_URL
@@ -8,6 +10,10 @@ COPY . .
 RUN npm run build
 
 FROM nginx:alpine
+ENV TZ=America/Argentina/Buenos_Aires
+RUN apk add --no-cache tzdata \
+    && cp /usr/share/zoneinfo/$TZ /etc/localtime \
+    && echo $TZ > /etc/timezone
 COPY --from=build /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 EXPOSE 80

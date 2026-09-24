@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import api from '../api';
+import { formatFechaHora } from '../utils/date';
 
 export default function ModalHerramientasComplementarias({ isOpen, onClose, tableros = [], onDataUpdated }) {
   const [activeTab, setActiveTab] = useState('excel'); // 'excel' | 'shortcuts' | 'intranet'
@@ -83,14 +84,7 @@ export default function ModalHerramientasComplementarias({ isOpen, onClose, tabl
             .join(' | ');
         }
 
-        let fechaFormatted = '';
-        if (t.fecha_creacion) {
-          try {
-            fechaFormatted = new Date(t.fecha_creacion).toLocaleString('es-AR');
-          } catch {
-            fechaFormatted = t.fecha_creacion;
-          }
-        }
+        let fechaFormatted = t.fecha_creacion ? formatFechaHora(t.fecha_creacion) : '';
 
         return {
           'N°': idx + 1,

@@ -6,6 +6,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.frontend.dev
+    environment:
+      TZ: America/Argentina/Buenos_Aires
     volumes:
       - ./src:/app/src
       - ./index.html:/app/index.html
@@ -23,6 +25,8 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    environment:
+      TZ: America/Argentina/Buenos_Aires
     env_file:
       - .env.develop
     volumes:
@@ -42,6 +46,8 @@ services:
   ticket-db:
     container_name: ticket-db
     image: mariadb:11.6
+    environment:
+      TZ: America/Argentina/Buenos_Aires
     env_file:
       - .env.develop
     volumes:
@@ -62,6 +68,7 @@ services:
     image: phpmyadmin:latest
     restart: unless-stopped
     environment:
+      TZ: America/Argentina/Buenos_Aires
       PMA_HOST: ticket-db
       PMA_PORT: 3306
       PMA_ARBITRARY: "1"

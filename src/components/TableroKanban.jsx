@@ -5,6 +5,7 @@ import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import api from '../api';
 import { useAuth } from '../context/AuthContext';
 import { parseTableroConfig } from '../utils/configTablero';
+import { formatFechaHora, formatFechaHoraLarga, formatFechaCorta, formatFecha } from '../utils/date';
 import EstadisticasPanel from './EstadisticasPanel';
 
 const PERMISOS_KEYS = [
@@ -213,7 +214,7 @@ const TicketCard = React.memo(({ ticket, index, onClick, isReadOnly, numeroTicke
             <div className="flex justify-between items-center pt-2.5 border-t border-slate-100 dark:border-white/5 h-[38px] shrink-0">
               <div className="flex items-center gap-1.5">
                 <span className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold tracking-wide">
-                  {new Date(ticket.fecha_creacion).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                  {formatFechaCorta(ticket.fecha_creacion)}
                 </span>
                 {Array.isArray(ticket.checklist) && ticket.checklist.length > 0 && (() => {
                   const doneCount = ticket.checklist.filter(c => c.completado).length;
@@ -1731,7 +1732,7 @@ export default function TableroKanban() {
                   area: data.area || 'General',
                   prioridad: data.prioridad,
                   seccion_solicitante: data.seccion_solicitante || '',
-                  fecha_creacion: new Date(data.fecha_creacion).toLocaleDateString('es-AR')
+                  fecha_creacion: formatFecha(data.fecha_creacion)
                 })
               }).catch(err => console.error("Error al notificar a n8n:", err));
             }
@@ -2192,7 +2193,7 @@ export default function TableroKanban() {
                     {(() => {
                       const term = busqueda.toLowerCase().trim();
                       const filtered = tickets.filter(t => {
-                        const dateStr = t.fecha_creacion ? new Date(t.fecha_creacion).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+                        const dateStr = formatFechaCorta(t.fecha_creacion);
                         const numTkt = getNumeroTicket(t, tickets);
                         return t.titulo?.toLowerCase().includes(term) ||
                           t.solicitante?.toLowerCase().includes(term) ||
@@ -2232,7 +2233,7 @@ export default function TableroKanban() {
                               {t.titulo}
                             </p>
                             <p className="text-[11px] font-medium text-slate-500 dark:text-neutral-400 leading-tight mb-1.5 truncate">
-                              Fecha: {new Date(t.fecha_creacion).toLocaleDateString()} | {t.prioridad !== 'Nota' ? `Ticket #${getNumeroTicket(t, tickets)}` : 'Nota'} | Asignado a: {t.responsable || 'Sin asignar'} | Solicitante: {t.solicitante || 'Desconocido'}
+                              Fecha: {formatFecha(t.fecha_creacion)} | {t.prioridad !== 'Nota' ? `Ticket #${getNumeroTicket(t, tickets)}` : 'Nota'} | Asignado a: {t.responsable || 'Sin asignar'} | Solicitante: {t.solicitante || 'Desconocido'}
                             </p>
                             <p className="text-[10px] font-extrabold text-slate-400 dark:text-neutral-500 uppercase tracking-widest flex items-center gap-1.5">
                               {t.departamento === 'Soporte Técnico' ? 'MESA DE AYUDA' : t.departamento}: {t.estado.toUpperCase()}
@@ -2420,7 +2421,7 @@ export default function TableroKanban() {
                       {(() => {
                         const term = busqueda.toLowerCase().trim();
                         const filtered = tickets.filter(t => {
-                          const dateStr = t.fecha_creacion ? new Date(t.fecha_creacion).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+                          const dateStr = formatFechaCorta(t.fecha_creacion);
                           const numTkt = getNumeroTicket(t, tickets);
                           return t.titulo?.toLowerCase().includes(term) ||
                             t.solicitante?.toLowerCase().includes(term) ||
@@ -3190,7 +3191,7 @@ export default function TableroKanban() {
                       <span className="text-slate-300 dark:text-slate-600">•</span>
                     </>
                   )}
-                  <span>{new Date(ticketActivo.fecha_creacion).toLocaleString('es-ES', { dateStyle: 'long', timeStyle: 'short' })}</span>
+                  <span>{formatFechaHoraLarga(ticketActivo.fecha_creacion)}</span>
                   <span className="text-slate-300 dark:text-slate-600">•</span>
                   <span className="text-[#065E94] dark:text-blue-400 bg-blue-50/80 dark:bg-blue-900/30 px-3 py-1.5 rounded-lg font-bold border border-blue-100/50 dark:border-blue-800/50 whitespace-nowrap">{ticketActivo.estado}</span>
                 </div>
@@ -3434,7 +3435,7 @@ export default function TableroKanban() {
                                       {renderTextoComentario(cleanTexto, false, false)}
                                     </p>
                                     <span className="text-[9.5px] text-slate-400 dark:text-neutral-500 font-bold mt-1 uppercase tracking-wider">
-                                      {userObj?.nombre || 'Sistema'} • {new Date(c.created_at).toLocaleString('es-ES', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                      {userObj?.nombre || 'Sistema'} • {formatFechaHora(c.created_at)}
                                     </span>
                                   </div>
                                 </div>
@@ -3455,7 +3456,7 @@ export default function TableroKanban() {
                                     {renderTextoComentario(cleanTexto, false, false)}
                                   </p>
                                   <span className="text-[9.5px] text-slate-400 dark:text-neutral-500 font-bold mt-0.5">
-                                    {userObj?.nombre || 'Sistema'} • {new Date(c.created_at).toLocaleString('es-ES', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                    {userObj?.nombre || 'Sistema'} • {formatFechaHora(c.created_at)}
                                   </span>
                                 </div>
                               </div>
@@ -3467,7 +3468,7 @@ export default function TableroKanban() {
                           <div key={c.id} className={`flex flex-col max-w-[85%] min-w-0 ${esMio ? 'ml-auto items-end' : 'mr-auto items-start'} group`}>
                             <div className="flex items-center gap-2 mb-1 px-1">
                               <span className="text-[10px] text-slate-400 font-bold">
-                                {userObj?.nombre || 'Usuario Desconocido'} • {new Date(c.created_at).toLocaleString('es-ES', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                {userObj?.nombre || 'Usuario Desconocido'} • {formatFechaHora(c.created_at)}
                               </span>
                               {esMio && !isEditing && comentarioAEliminar !== c.id && (
                                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -4159,7 +4160,7 @@ function NotificationItem({ n, tickets, setTicketActivo, setDetalleOpen, fetchCo
               <span className="truncate max-w-[170px]">{tkt.solicitante || tkt.seccion_solicitante}</span>
             </div>
           )}
-          <span className="text-[9px] font-bold text-slate-400 dark:text-neutral-500 block uppercase tracking-wider">{new Date(n.created_at).toLocaleString()}</span>
+          <span className="text-[9px] font-bold text-slate-400 dark:text-neutral-500 block uppercase tracking-wider">{formatFechaHora(n.created_at)}</span>
         </div>
       </div>
     </div>

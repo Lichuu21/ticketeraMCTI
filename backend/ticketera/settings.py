@@ -173,3 +173,8 @@ JAZZMIN_UI_TWEAKS = {
         'success': 'btn-success',
     },
 }
+
+# Límites de tamaño de subida de archivos (50 MB)
+DATA_UPLOAD_MAX_MEMORY_SIZE = 52428800
+FILE_UPLOAD_MAX_MEMORY_SIZE = 52428800
+
