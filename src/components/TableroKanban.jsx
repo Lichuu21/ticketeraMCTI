@@ -652,7 +652,8 @@ export default function TableroKanban() {
   const [subiendoArchivo, setSubiendoArchivo] = useState(false);
   const fileInputRef = useRef(null);
   const fileInputRefMobile = useRef(null);
-  const mensajesEndRef = useRef(null);
+  const mensajesTopRef = useRef(null);
+  const commentsContainerRef = useRef(null);
   const commentInputRefDesktop = useRef(null);
   const commentInputRefMobile = useRef(null);
   const editTextareaRef = useRef(null);
@@ -1019,8 +1020,9 @@ export default function TableroKanban() {
 
   // Auto-scroll al inicio del modal al abrir un ticket
   useEffect(() => {
-    if (detalleOpen && modalScrollRef.current) {
-      modalScrollRef.current.scrollTop = 0;
+    if (detalleOpen) {
+      if (modalScrollRef.current) modalScrollRef.current.scrollTop = 0;
+      if (commentsContainerRef.current) commentsContainerRef.current.scrollTop = 0;
     }
   }, [detalleOpen, ticketActivo]);
 
@@ -3397,7 +3399,9 @@ export default function TableroKanban() {
 
                 <div className="flex-1 flex flex-col md:overflow-hidden p-4 md:p-6">
                   {/* Lista de Comentarios */}
-                  <div className="flex-1 md:overflow-y-auto custom-scrollbar pr-1 space-y-3 mb-3 [contain:content]">
+                  <div ref={commentsContainerRef} className="flex-1 md:overflow-y-auto custom-scrollbar pr-1 space-y-3 mb-3 [contain:content]">
+                    {/* Elemento invisible para el auto-scroll al mensaje más nuevo (arriba) */}
+                    <div ref={mensajesTopRef} />
                     {comentarios.length === 0 ? (
                       <div className="h-full flex items-center justify-center text-sm text-slate-400 dark:text-slate-500 italic">
                         No hay comentarios en este ticket aún.
@@ -3574,8 +3578,6 @@ export default function TableroKanban() {
                         );
                       })
                     )}
-                    {/* Elemento invisible para el auto-scroll */}
-                    <div ref={mensajesEndRef} />
                   </div>
 
                   {/* Caja de nuevo comentario */}
@@ -3639,7 +3641,12 @@ export default function TableroKanban() {
 
                         setComentarios(prev => [...prev, comentarioOptimista]);
                         setSubiendoArchivo(false);
-                        setTimeout(() => mensajesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+                        setTimeout(() => {
+                          if (commentsContainerRef.current) {
+                            commentsContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+                          }
+                          mensajesTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                        }, 50);
 
                         // Guardamos en DB
                         const { error } = await api.comentarios.create({
@@ -3683,18 +3690,10 @@ export default function TableroKanban() {
                         <button
                           type="button"
                           onClick={() => fileInputRef.current?.click()}
-                          className="p-3 bg-slate-100 dark:bg-[var(--bg-main)] border border-slate-200/50 dark:border-[var(--border-accent)]/50 text-slate-500 dark:text-neutral-400 hover:text-[#065E94] dark:hover:text-white hover:bg-slate-200 dark:hover:bg-[#1c1c1c] rounded-xl transition-colors cursor-pointer"
+                          className="p-3 bg-slate-100 dark:bg-[var(--bg-main)] border border-slate-200/50 dark:border-[var(--border-accent)]/50 text-slate-500 dark:text-neutral-400 hover:text-[#065E94] dark:hover:text-white hover:bg-slate-200 dark:hover:bg-[#1c1c1c] rounded-xl transition-colors cursor-pointer shrink-0"
                           title="Adjuntar archivo"
                         >
                           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleTriggerMention('desktop')}
-                          className="px-3.5 py-2.5 bg-slate-100 dark:bg-[var(--bg-main)] border border-slate-200/50 dark:border-[var(--border-accent)]/50 text-slate-500 dark:text-neutral-400 hover:text-[#065E94] dark:hover:text-blue-400 hover:bg-slate-200 dark:hover:bg-[#1c1c1c] rounded-xl transition-colors cursor-pointer flex items-center justify-center font-extrabold text-sm"
-                          title="Mencionar miembro del tablero (@)"
-                        >
-                          @
                         </button>
                         <input
                           type="text"
@@ -3706,12 +3705,12 @@ export default function TableroKanban() {
                           }}
                           onKeyDown={e => handleCommentKeyDown(e, 'desktop')}
                           placeholder="Escribe un comentario... (usa @ para mencionar)"
-                          className="flex-1 bg-white dark:bg-[var(--bg-main)] border border-slate-200 dark:border-[var(--border-accent)] rounded-xl px-4 py-2.5 text-sm dark:text-white focus:ring-2 focus:ring-[#065E94]/50 outline-none shadow-sm dark:shadow-none"
+                          className="flex-1 min-w-0 bg-white dark:bg-[var(--bg-main)] border border-slate-200 dark:border-[var(--border-accent)] rounded-xl px-4 py-2.5 text-sm dark:text-white focus:ring-2 focus:ring-[#065E94]/50 outline-none shadow-sm dark:shadow-none"
                         />
                         <button
                           type="submit"
                           disabled={(!nuevoComentario.trim() && !archivoSeleccionado) || subiendoArchivo}
-                          className="bg-[#065E94] hover:bg-[#043d63] text-white px-4 py-2.5 rounded-xl shadow-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center min-w-[3rem]"
+                          className="bg-[#065E94] hover:bg-[#043d63] text-white px-4 py-2.5 rounded-xl shadow-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center min-w-[3rem] shrink-0"
                         >
                           {subiendoArchivo ? (
                             <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
@@ -3785,7 +3784,12 @@ export default function TableroKanban() {
 
                     setComentarios(prev => [...prev, comentarioOptimista]);
                     setSubiendoArchivo(false);
-                    setTimeout(() => mensajesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+                    setTimeout(() => {
+                      if (commentsContainerRef.current) {
+                        commentsContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+                      }
+                      mensajesTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    }, 50);
 
                     // Guardamos en DB
                     const { error } = await api.comentarios.create({
@@ -3829,18 +3833,10 @@ export default function TableroKanban() {
                     <button
                       type="button"
                       onClick={() => fileInputRefMobile.current?.click()}
-                      className="p-3 bg-slate-100 dark:bg-[var(--bg-main)] border border-slate-200 dark:border-[var(--border-accent)] text-slate-500 dark:text-neutral-400 hover:text-[#065E94] dark:hover:text-white hover:bg-slate-200 dark:hover:bg-[#1c1c1c] rounded-xl transition-colors cursor-pointer"
+                      className="p-3 bg-slate-100 dark:bg-[var(--bg-main)] border border-slate-200 dark:border-[var(--border-accent)] text-slate-500 dark:text-neutral-400 hover:text-[#065E94] dark:hover:text-white hover:bg-slate-200 dark:hover:bg-[#1c1c1c] rounded-xl transition-colors cursor-pointer shrink-0"
                       title="Adjuntar archivo"
                     >
                       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleTriggerMention('mobile')}
-                      className="px-3.5 py-2.5 bg-slate-100 dark:bg-[var(--bg-main)] border border-slate-200 dark:border-[var(--border-accent)] text-slate-500 dark:text-neutral-400 hover:text-[#065E94] dark:hover:text-blue-400 hover:bg-slate-200 dark:hover:bg-[#1c1c1c] rounded-xl transition-colors cursor-pointer flex items-center justify-center font-extrabold text-sm"
-                      title="Mencionar miembro (@)"
-                    >
-                      @
                     </button>
                     <input
                       type="text"
@@ -3852,12 +3848,12 @@ export default function TableroKanban() {
                       }}
                       onKeyDown={e => handleCommentKeyDown(e, 'mobile')}
                       placeholder="Comentario... (usa @ para mencionar)"
-                      className="flex-1 bg-white dark:bg-[var(--bg-main)] border border-slate-200 dark:border-[var(--border-accent)] rounded-xl px-4 py-2.5 text-sm dark:text-white focus:ring-2 focus:ring-[#065E94]/50 outline-none shadow-sm dark:shadow-none"
+                      className="flex-1 min-w-0 bg-white dark:bg-[var(--bg-main)] border border-slate-200 dark:border-[var(--border-accent)] rounded-xl px-4 py-2.5 text-sm dark:text-white focus:ring-2 focus:ring-[#065E94]/50 outline-none shadow-sm dark:shadow-none"
                     />
                     <button
                       type="submit"
                       disabled={(!nuevoComentario.trim() && !archivoSeleccionado) || subiendoArchivo}
-                      className="bg-[#065E94] hover:bg-[#043d63] text-white px-4 py-2.5 rounded-xl shadow-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center min-w-[3rem]"
+                      className="bg-[#065E94] hover:bg-[#043d63] text-white px-4 py-2.5 rounded-xl shadow-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center min-w-[3rem] shrink-0"
                     >
                       {subiendoArchivo ? (
                         <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
