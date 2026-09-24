@@ -3,6 +3,8 @@ dist
 dist-ssr
 .git
 .gitignore
+.env
+.env.*
 .vscode
 .idea
 *.md

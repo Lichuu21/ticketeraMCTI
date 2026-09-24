@@ -1,5 +1,7 @@
 FROM node:20-alpine AS build
 WORKDIR /app
+ARG VITE_N8N_WEBHOOK_URL=https://n8n.efectohost.com/webhook/crear-ticket
+ENV VITE_N8N_WEBHOOK_URL=$VITE_N8N_WEBHOOK_URL
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .

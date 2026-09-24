@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  ticket-web:
+    container_name: ticket-web-prod
+    image: ticketeramcti-ticket-web-prod
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+      args:
+        VITE_N8N_WEBHOOK_URL: ${VITE_N8N_WEBHOOK_URL:-https://n8n.efectohost.com/webhook/crear-ticket}
+    ports:
+      - "8080:80"
+    depends_on:
+      - ticket-api
+    networks:
+      - ticket-net
+    restart: unless-stopped
+
+  ticket-api:
+    container_name: ticket-api-prod
+    image: ticketeramcti-ticket-api-prod
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    volumes:
+      - media_data_prod:/app/media
+      - static_data_prod:/app/static
+    depends_on:
+      ticket-db:
+        condition: service_healthy
+    networks:
+      - ticket-net
+    restart: unless-stopped
+    entrypoint: [ "bash", "entrypoint.sh" ]
+
+  ticket-db:
+    container_name: ticket-db-prod
+    image: mariadb:11.6
+    env_file:
+      - .env
+    volumes:
+      - mariadb_data_prod:/var/lib/mysql
+    healthcheck:
+      test: [ "CMD", "healthcheck.sh", "--connect", "--innodb_initialized" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - ticket-net
+
+volumes:
+  mariadb_data_prod:
+  media_data_prod:
+  static_data_prod:
+
+networks:
+  ticket-net:

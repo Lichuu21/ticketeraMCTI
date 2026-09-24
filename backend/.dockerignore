@@ -1,9 +1,9 @@
+.venv
 __pycache__
 *.pyc
-*.pyo
-.git
-.gitignore
-.env
-*.md
+static
 staticfiles
+media
+media_data
+.env
 db.sqlite3
