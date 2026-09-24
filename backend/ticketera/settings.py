@@ -131,6 +131,9 @@ JAZZMIN_SETTINGS = {
         'core.SiteSetting': 'fas fa-cog',
         'core.WallpaperGroup': 'fas fa-images',
         'core.Wallpaper': 'fas fa-image',
+        'core.Rol': 'fas fa-user-tag',
+        'core.Group': 'fas fa-users',
+        
     },
     'default_icon_parents': 'fas fa-folder',
     'default_icon_children': 'fas fa-circle',
