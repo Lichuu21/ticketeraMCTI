@@ -163,6 +163,18 @@ export const usuarios = {
       return formatError(e);
     }
   },
+
+  async resetPassword(id, password = 'Cti1234', debeCambiarPassword = true) {
+    try {
+      const data = await apiRequest('POST', `/usuarios/${id}/reset-password/`, {
+        password,
+        debe_cambiar_password: debeCambiarPassword,
+      });
+      return { data, error: null };
+    } catch (e) {
+      return formatError(e);
+    }
+  },
 };
 
 // ─── TABLEROS ────────────────────────────────────────────

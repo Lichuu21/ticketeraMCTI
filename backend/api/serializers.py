@@ -128,6 +128,28 @@ class UsuarioSerializer(serializers.ModelSerializer):
         user.groups.set(groups_data)
         return user
 
+    def update(self, instance, validated_data):
+        roles_data = validated_data.pop('roles', None)
+        groups_data = validated_data.pop('groups', None)
+        password = validated_data.pop('password', None)
+        debe_cambiar = validated_data.pop('debe_cambiar_password', None)
+
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+
+        if password:
+            instance.set_password(password)
+            instance.debe_cambiar_password = True
+        elif debe_cambiar is not None:
+            instance.debe_cambiar_password = debe_cambiar
+
+        instance.save()
+        if roles_data is not None:
+            instance.roles.set(roles_data)
+        if groups_data is not None:
+            instance.groups.set(groups_data)
+        return instance
+
 
 class TableroSerializer(serializers.ModelSerializer):
     creador_nombre = serializers.CharField(source='creador.nombre', read_only=True, default='')

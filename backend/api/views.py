@@ -56,6 +56,34 @@ class UsuarioViewSet(viewsets.ModelViewSet):
             )
         return qs
 
+    @action(detail=True, methods=['post'], url_path='reset-password')
+    def reset_password(self, request, pk=None):
+        if not (request.user.is_superuser or is_global_admin(request.user)):
+            return Response(
+                {'error': 'No tienes permisos de administrador para restablecer contraseñas'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        user = self.get_object()
+        new_password = request.data.get('password') or request.data.get('new_password') or 'Cti1234'
+        debe_cambiar = request.data.get('debe_cambiar_password', True)
+
+        if len(new_password) < 4:
+            return Response(
+                {'error': 'La contraseña debe tener al menos 4 caracteres'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        user.set_password(new_password)
+        user.debe_cambiar_password = bool(debe_cambiar)
+        user.save()
+
+        return Response({
+            'status': 'ok',
+            'message': f'Contraseña restablecida correctamente para {user.email}',
+            'temporary_password': new_password,
+            'debe_cambiar_password': user.debe_cambiar_password,
+        })
+
 
 class TableroViewSet(viewsets.ModelViewSet):
     queryset = Tablero.objects.all()
@@ -479,11 +507,15 @@ def reset_password_view(request):
     try:
         user = Usuario.objects.get(email__iexact=email)
         if not new_password:
-            new_password = 'Temp1234!'
+            new_password = 'Cti1234'
         user.set_password(new_password)
         user.debe_cambiar_password = True
         user.save()
-        return Response({'status': 'ok', 'message': f'Contraseña restablecida para {email}'})
+        return Response({
+            'status': 'ok',
+            'message': f'Contraseña restablecida para {email}',
+            'temporary_password': new_password
+        })
     except Usuario.DoesNotExist:
         return Response({'status': 'ok', 'message': 'Si el correo existe, se procesó la solicitud'})
 
