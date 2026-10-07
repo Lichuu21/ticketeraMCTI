@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>{{ $json.body.asunto }}</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f0f2f5;font-family:Arial,Helvetica,sans-serif;">
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f0f2f5;">
+        <tr>
+            <td align="center" style="padding:30px 15px;">
+                <table width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;background-color:#ffffff;border-collapse:collapse;border-radius:12px;overflow:hidden;box-shadow:0 4px 15px rgba(0,0,0,0.08);">
+                    
+                    <!-- CABECERA INSTITUCIONAL -->
+                    <tr>
+                        <td align="center" style="background-color:#00ADC1;padding:32px 30px;text-align:center;">
+                            <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                                <tr>
+                                    <td align="center" style="font-family:Arial,sans-serif;font-size:14px;font-weight:bold;color:#ffffff;letter-spacing:2px;text-transform:uppercase;padding-bottom:8px;">
+                                        GOBIERNO DE LA PROVINCIA DE BUENOS AIRES
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td align="center" style="padding:4px 0 10px 0;">
+                                        <table width="70%" cellpadding="0" cellspacing="0" border="0" align="center">
+                                            <tr>
+                                                <td style="background-color:rgba(255,255,255,0.4);height:2px;font-size:1px;line-height:1px;">&nbsp;</td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td align="center" style="padding-top:4px;">
+                                        <span style="font-family:Arial,sans-serif;font-size:18px;font-weight:bold;color:#ffffff;letter-spacing:1px;text-transform:uppercase;line-height:1.3;">DIRECCIÓN DE INFORMÁTICA<br>DELEGACIÓN III</span>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                    
+                    <!-- CUERPO DEL MENSAJE -->
+                    <tr>
+                        <td style="padding:35px 35px 25px 35px;">
+                            <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                                <tr>
+                                    <td style="font-family:Arial,sans-serif;font-size:16px;font-weight:bold;color:#0d1b2a;padding-bottom:15px;">
+                                        Estimado/a {{ $json.body.destinatario_nombre || 'usuario/a' }},
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="background-color:#f8fafc;border-left:4px solid #00ADC1;padding:16px;font-family:Arial,sans-serif;font-size:15px;color:#334155;line-height:1.6;border-radius:0 6px 6px 0;">
+                                        {{ $json.body.tipo === 'asignacion' ? 'Te informamos que has sido asignado/a como responsable en el siguiente ticket:' : 'Te informamos que ' + ($json.body.autor || 'un integrante del equipo') + ' te mencionó en los comentarios del siguiente ticket:' }}
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <!-- INSIGNIA DESTACADA -->
+                            <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                                <tr>
+                                    <td align="center" style="padding:28px 0 24px 0;">
+                                        <table cellpadding="0" cellspacing="0" border="0" align="center">
+                                            <tr>
+                                                <td style="background-color:#00ADC1;padding:16px 36px;border-radius:10px;text-align:center;">
+                                                    <span style="font-family:'Courier New',Courier,monospace,sans-serif;font-size:19px;font-weight:bold;color:#ffffff;letter-spacing:1px;">
+                                                        {{ $json.body.mensaje }}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <!-- BLOQUE COMENTARIO SI ES MENCIÓN -->
+                            {{ $json.body.comentario ? '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f8fafc;border-left:4px solid #00ADC1;border-radius:0 8px 8px 0;padding:16px 20px;margin-bottom:20px;"><tr><td style="font-family:Arial,sans-serif;font-size:12px;font-weight:bold;color:#00ADC1;text-transform:uppercase;letter-spacing:1px;padding-bottom:6px;">💬 Comentario ' + ($json.body.autor ? 'de ' + $json.body.autor : '') + '</td></tr><tr><td style="font-family:Arial,sans-serif;font-size:14px;color:#1e293b;line-height:1.6;font-style:italic;">"' + $json.body.comentario + '"</td></tr></table>' : '' }}
+
+                            <!-- DETALLES DEL TICKET -->
+                            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f1f5f9;border-radius:8px;padding:16px 20px;margin-bottom:20px;">
+                                <tr>
+                                    <td style="font-family:Arial,sans-serif;font-size:14px;color:#334155;padding:4px 0;">
+                                        <strong>Número de Ticket:</strong> {{ $json.body.numero_ticket }}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="font-family:Arial,sans-serif;font-size:14px;color:#334155;padding:4px 0;">
+                                        <strong>Asunto / Título:</strong> {{ $json.body.titulo }}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="font-family:Arial,sans-serif;font-size:14px;color:#334155;padding:4px 0;">
+                                        <strong>Área / Sección:</strong> {{ $json.body.area || 'General' }}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="font-family:Arial,sans-serif;font-size:14px;color:#334155;padding:4px 0;">
+                                        <strong>{{ $json.body.tipo === 'mencion' ? 'Mencionado por:' : 'Asignado por:' }}</strong> {{ $json.body.autor || 'Sistema' }}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="font-family:Arial,sans-serif;font-size:14px;color:#334155;padding:4px 0;">
+                                        <strong>Fecha:</strong> {{ $json.body.fecha }}
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <!-- AVISO DE SEGUIMIENTO -->
+                            <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                                <tr>
+                                    <td align="center" style="font-family:Arial,sans-serif;font-size:13px;color:#64748b;line-height:1.5;padding:5px 10px 15px 10px;">
+                                        <strong style="color:#00ADC1;">Aviso del Sistema:</strong> Podés acceder a la plataforma de gestión de soporte técnico para ver los detalles y actualizar el ticket.
+                                    </td>
+                                </tr>
+                            </table>
+
+                        </td>
+                    </tr>
+
+                    <!-- PIE DE PÁGINA -->
+                    <tr>
+                        <td style="background-color:#f8fafc;border-top:1px solid #e2e8f0;padding:24px 30px;text-align:center;">
+                            <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                                <tr>
+                                    <td align="center" style="font-family:Arial,sans-serif;font-size:13px;font-weight:bold;color:#0d1b2a;padding-bottom:4px;">
+                                        Dirección de Informática &mdash; Delegación III
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td align="center" style="font-family:Arial,sans-serif;font-size:12px;color:#64748b;padding-bottom:12px;">
+                                        Provincia de Buenos Aires
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td align="center" style="font-family:Arial,sans-serif;font-size:11px;color:#94a3b8;line-height:1.4;">
+                                        Este correo fue generado automáticamente por el sistema de soporte técnico.<br>
+                                        <strong>Por favor, no responda directamente a este mensaje.</strong>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

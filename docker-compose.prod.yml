@@ -9,6 +9,7 @@ services:
       dockerfile: Dockerfile.frontend
       args:
         VITE_N8N_WEBHOOK_URL: ${VITE_N8N_WEBHOOK_URL:-https://n8n.efectohost.com/webhook/crear-ticket}
+        VITE_N8N_NOTIFICACIONES_WEBHOOK_URL: ${VITE_N8N_NOTIFICACIONES_WEBHOOK_URL:-https://n8n.efectohost.com/webhook/notificaciones-ticket}
     environment:
       TZ: America/Argentina/Buenos_Aires
     ports:

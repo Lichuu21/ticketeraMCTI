@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <title>Notificación de Soporte Técnico</title>
+    <title>{{ $json.body.asunto || 'Notificación de Soporte Técnico' }}</title>
 </head>
 <body style="margin:0;padding:0;background-color:#f0f2f5;font-family:Arial,Helvetica,sans-serif;">
     <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f0f2f5;">
@@ -45,27 +45,41 @@
                             <table width="100%" cellpadding="0" cellspacing="0" border="0">
                                 <tr>
                                     <td style="font-family:Arial,sans-serif;font-size:16px;font-weight:bold;color:#0d1b2a;padding-bottom:15px;">
-                                        Estimado/a {{ $json.body.solicitante }},
+                                        Estimado/a {{ $json.body.destinatario_nombre || $json.body.solicitante || 'usuario/a' }},
                                     </td>
                                 </tr>
                                 <tr>
                                     <td style="background-color:#f8fafc;border-left:4px solid #00ADC1;padding:16px;font-family:Arial,sans-serif;font-size:15px;color:#334155;line-height:1.6;border-radius:0 6px 6px 0;">
-                                        Le informamos que hemos registrado su solicitud en nuestro sistema de soporte técnico.
+                                        {{ $json.body.tipo === 'asignacion' 
+                                            ? 'Te informamos que has sido asignado/a como responsable en el siguiente ticket:' 
+                                            : ($json.body.tipo === 'mencion' 
+                                                ? 'Te informamos que ' + ($json.body.autor || 'un integrante del equipo') + ' te mencionó en los comentarios del siguiente ticket:' 
+                                                : 'Le informamos que hemos registrado su solicitud en nuestro sistema de soporte técnico.') }}
                                     </td>
                                 </tr>
                             </table>
 
-                            <!-- NÚMERO DE TICKET DESTACADO -->
+                            <!-- INSIGNIA O NÚMERO DESTACADO -->
                             <table width="100%" cellpadding="0" cellspacing="0" border="0">
                                 <tr>
                                     <td align="center" style="padding:28px 0 20px 0;">
                                         <div style="font-family:Arial,sans-serif;font-size:11px;text-transform:uppercase;color:#64748b;font-weight:bold;letter-spacing:2px;padding-bottom:10px;">
-                                            NÚMERO DE TICKET
+                                            {{ $json.body.tipo === 'asignacion' 
+                                                ? 'AVISO DE ASIGNACIÓN' 
+                                                : ($json.body.tipo === 'mencion' 
+                                                    ? 'AVISO DE MENCIÓN' 
+                                                    : 'NÚMERO DE TICKET') }}
                                         </div>
                                         <table cellpadding="0" cellspacing="0" border="0" align="center">
                                             <tr>
-                                                <td style="background-color:#00ADC1;padding:16px 40px;border-radius:10px;text-align:center;">
-                                                    <span style="font-family:'Courier New',Courier,monospace;font-size:28px;font-weight:bold;color:#ffffff;letter-spacing:2px;">{{ $json.body.numero_ticket }}</span>
+                                                <td style="background-color:#00ADC1;padding:16px 36px;border-radius:10px;text-align:center;">
+                                                    <span style="font-family:'Courier New',Courier,monospace;font-size:{{ $json.body.tipo ? '20px' : '28px' }};font-weight:bold;color:#ffffff;letter-spacing:1px;">
+                                                        {{ $json.body.tipo === 'asignacion' 
+                                                            ? 'Fuiste asignado a ' + $json.body.numero_ticket 
+                                                            : ($json.body.tipo === 'mencion' 
+                                                                ? 'Fuiste mencionado en los comentarios del ticket ' + $json.body.numero_ticket 
+                                                                : $json.body.numero_ticket) }}
+                                                    </span>
                                                 </td>
                                             </tr>
                                         </table>
@@ -73,8 +87,29 @@
                                 </tr>
                             </table>
 
+                            <!-- BLOQUE COMENTARIO DESTACADO (SI FUE MENCIÓN) -->
+                            {{ $json.body.tipo === 'mencion' && $json.body.comentario ? `
+                            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f8fafc;border-left:4px solid #00ADC1;border-radius:0 8px 8px 0;padding:16px 20px;margin-bottom:20px;">
+                                <tr>
+                                    <td style="font-family:Arial,sans-serif;font-size:12px;font-weight:bold;color:#00ADC1;text-transform:uppercase;letter-spacing:1px;padding-bottom:6px;">
+                                        💬 Comentario ` + ($json.body.autor ? `de ${$json.body.autor}` : '') + `
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="font-family:Arial,sans-serif;font-size:14px;color:#1e293b;line-height:1.6;font-style:italic;">
+                                        "${$json.body.comentario}"
+                                    </td>
+                                </tr>
+                            </table>
+                            ` : '' }}
+
                             <!-- DETALLES DE LA SOLICITUD -->
                             <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f1f5f9;border-radius:8px;padding:16px 20px;margin-bottom:20px;">
+                                <tr>
+                                    <td style="font-family:Arial,sans-serif;font-size:14px;color:#334155;padding:4px 0;">
+                                        <strong>Número de Ticket:</strong> {{ $json.body.numero_ticket }}
+                                    </td>
+                                </tr>
                                 <tr>
                                     <td style="font-family:Arial,sans-serif;font-size:14px;color:#334155;padding:4px 0;">
                                         <strong>Asunto / Título:</strong> {{ $json.body.titulo }}
@@ -82,17 +117,26 @@
                                 </tr>
                                 <tr>
                                     <td style="font-family:Arial,sans-serif;font-size:14px;color:#334155;padding:4px 0;">
-                                        <strong>Área / Sección:</strong> {{ $json.body.area }}{{ $json.body.seccion_solicitante ? ' (' + $json.body.seccion_solicitante + ')' : '' }}
+                                        <strong>Área / Sección:</strong> {{ $json.body.area || 'General' }}{{ $json.body.seccion_solicitante ? ' (' + $json.body.seccion_solicitante + ')' : '' }}
                                     </td>
                                 </tr>
+                                {{ $json.body.tipo ? `
                                 <tr>
                                     <td style="font-family:Arial,sans-serif;font-size:14px;color:#334155;padding:4px 0;">
-                                        <strong>Fecha de Registro:</strong> {{ $json.body.fecha_creacion }}
+                                        <strong>${$json.body.tipo === 'mencion' ? 'Mencionado por:' : 'Asignado por:'}</strong> ${$json.body.autor || 'Sistema'}
+                                    </td>
+                                </tr>
+                                ` : '' }}
+                                <tr>
+                                    <td style="font-family:Arial,sans-serif;font-size:14px;color:#334155;padding:4px 0;">
+                                        <strong>Fecha:</strong> {{ $json.body.fecha || $json.body.fecha_creacion }}
                                     </td>
                                 </tr>
                             </table>
 
-                            <!-- CANAL DE ATENCIÓN POR WHATSAPP -->
+                            <!-- SECCIÓN INFORMATIVA SEGÚN CASO -->
+                            {{ !$json.body.tipo || $json.body.tipo === 'solicitante' ? `
+                            <!-- CANAL DE ATENCIÓN POR WHATSAPP (SOLICITANTE) -->
                             <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px 20px;margin-bottom:20px;">
                                 <tr>
                                     <td align="center" style="font-family:Arial,sans-serif;font-size:14px;color:#166534;line-height:1.5;">
@@ -102,6 +146,16 @@
                                     </td>
                                 </tr>
                             </table>
+                            ` : `
+                            <!-- AVISO DE SEGUIMIENTO (ASIGNACIÓN / MENCIÓN) -->
+                            <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                                <tr>
+                                    <td align="center" style="font-family:Arial,sans-serif;font-size:13px;color:#64748b;line-height:1.5;padding:5px 10px 15px 10px;">
+                                        <strong style="color:#00ADC1;">Aviso del Sistema:</strong> Podés acceder a la plataforma de gestión de soporte técnico para ver los detalles y actualizar el ticket.
+                                    </td>
+                                </tr>
+                            </table>
+                            ` }}
 
                             <table width="100%" cellpadding="0" cellspacing="0" border="0">
                                 <tr>

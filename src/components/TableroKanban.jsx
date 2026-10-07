@@ -6,6 +6,7 @@ import api from '../api';
 import { useAuth } from '../context/AuthContext';
 import { parseTableroConfig } from '../utils/configTablero';
 import { formatFechaHora, formatFechaHoraLarga, formatFechaCorta, formatFecha } from '../utils/date';
+import { enviarNotificacionesBatch, buildSolicitanteHtml } from '../utils/mailNotificationService';
 import EstadisticasPanel from './EstadisticasPanel';
 
 const PERMISOS_KEYS = [
@@ -835,7 +836,6 @@ export default function TableroKanban() {
   const notificarMenciones = async (ticket, texto) => {
     if (!ticket || !texto || !user) return;
     const mentionedUsers = (usuariosDelTablero || []).filter(u => {
-      if (String(u.id) === String(user.id)) return false;
       if (!u.nombre) return false;
       const escaped = u.nombre.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const regex = new RegExp(`(?<=\\s|^|[([{"'])@${escaped}(?=\\s|[.,!?;:]|$)`, 'i');
@@ -845,15 +845,29 @@ export default function TableroKanban() {
     if (mentionedUsers.length > 0) {
       try {
         const preview = texto.length > 60 ? texto.slice(0, 57) + '...' : texto;
-        await Promise.all(mentionedUsers.map(u => api.notificaciones.create({
-          usuario_id: u.id,
-          ticket_id: ticket.id,
-          mensaje: `${user.nombre || 'Alguien'} te mencionó en "${ticket.titulo}": "${preview}"`,
-          leida: false
-        })));
+        const inAppUsers = mentionedUsers.filter(u => String(u.id) !== String(user.id));
+        if (inAppUsers.length > 0) {
+          await Promise.all(inAppUsers.map(u => api.notificaciones.create({
+            usuario_id: u.id,
+            ticket_id: ticket.id,
+            mensaje: `${user.nombre || 'Alguien'} te mencionó en "${ticket.titulo}": "${preview}"`,
+            leida: false
+          })));
+        }
       } catch (err) {
         console.error("Error enviando notificaciones de mención:", err);
       }
+
+      // Enviar mail de aviso por mención a los usuarios vinculados
+      const numTicket = getNumeroTicket(ticket, tickets) || ticket.numero_ticket || ticket.id;
+      enviarNotificacionesBatch({
+        tipo: 'mencion',
+        usuarios: mentionedUsers,
+        ticket,
+        autor: user,
+        comentario: texto,
+        numeroTicket: numTicket
+      });
     }
   };
 
@@ -1646,6 +1660,17 @@ export default function TableroKanban() {
                     if (errors.length > 0) console.error("Error al despachar notificaciones de asignación:", errors[0].error);
                   });
               }
+
+              // Enviar mail de aviso a los nuevos usuarios asignados
+              const usuariosParaEmail = (usuarios || []).filter(u => nuevosAsignados.includes(u.nombre));
+              const numTicket = getNumeroTicket(ticketViejo, tickets) || id;
+              enviarNotificacionesBatch({
+                tipo: 'asignacion',
+                usuarios: usuariosParaEmail,
+                ticket: { ...ticketViejo, id, titulo, area, prioridad },
+                autor: user,
+                numeroTicket: numTicket
+              });
             }
           }
         }
@@ -1720,21 +1745,36 @@ export default function TableroKanban() {
           // Notificar a n8n si hay correo de solicitante configurado
           if (email_solicitante && email_solicitante.trim()) {
             const numeroTicketCalculado = getNumeroTicket(data, [...tickets, data]);
+            const numTktStr = numeroTicketCalculado ? `#${numeroTicketCalculado}` : 'Nota';
             const n8nWebhookUrl = import.meta.env.VITE_N8N_WEBHOOK_URL || 'https://n8n.efectohost.com/webhook/crear-ticket';
             if (n8nWebhookUrl) {
+              const htmlSolicitante = buildSolicitanteHtml({
+                solicitante: data.solicitante || 'Solicitante',
+                numeroTicket: numTktStr,
+                titulo: data.titulo,
+                area: data.area || 'General',
+                seccion_solicitante: data.seccion_solicitante || '',
+                fecha_creacion: formatFecha(data.fecha_creacion)
+              });
+
               fetch(n8nWebhookUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
+                  tipo: 'solicitante',
+                  asunto: `Notificación de Soporte Técnico - Ticket ${numTktStr}`,
                   ticket_id: data.id,
-                  numero_ticket: numeroTicketCalculado ? `#${numeroTicketCalculado}` : 'Nota',
+                  numero_ticket: numTktStr,
                   titulo: data.titulo,
                   solicitante: data.solicitante || 'Solicitante',
                   email_solicitante: email_solicitante.trim(),
+                  destinatario_email: email_solicitante.trim(),
+                  email: email_solicitante.trim(),
                   area: data.area || 'General',
                   prioridad: data.prioridad,
                   seccion_solicitante: data.seccion_solicitante || '',
-                  fecha_creacion: formatFecha(data.fecha_creacion)
+                  fecha_creacion: formatFecha(data.fecha_creacion),
+                  html: htmlSolicitante
                 })
               }).catch(err => console.error("Error al notificar a n8n:", err));
             }
@@ -1759,6 +1799,17 @@ export default function TableroKanban() {
                   if (errors.length > 0) console.error("Error al despachar notificaciones:", errors[0].error);
                 });
             }
+
+            // Enviar mail de aviso por asignación a los usuarios asignados
+            const usuariosAsignadosEmail = (usuarios || []).filter(u => respList.includes(u.nombre));
+            const numeroTicketAsignacion = getNumeroTicket(data, [...tickets, data]);
+            enviarNotificacionesBatch({
+              tipo: 'asignacion',
+              usuarios: usuariosAsignadosEmail,
+              ticket: data,
+              autor: user,
+              numeroTicket: numeroTicketAsignacion || nuevoTicketId
+            });
           }
         }
       }
