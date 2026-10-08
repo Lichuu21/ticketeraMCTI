@@ -527,7 +527,9 @@ html:not(.dark) .glass-card .glass-solicitor span {
 }
 
 /* Responsible bubbles */
-.theme-wallpaper .glass-card .rounded-full {
+.theme-wallpaper .glass-card .w-6.rounded-full,
+.theme-wallpaper .glass-card .w-7.rounded-full,
+.theme-wallpaper .glass-card .w-8.rounded-full {
   border-color: rgba(255, 255, 255, 0.20) !important;
 }
 

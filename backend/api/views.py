@@ -376,7 +376,18 @@ class ComentarioViewSet(viewsets.ModelViewSet):
         denied = self._check_comentario_permiso(request)
         if denied:
             return denied
-        return super().destroy(request, *args, **kwargs)
+        instance = self.get_object()
+        instance.delete()
+        return Response({'status': 'deleted', 'id': self.kwargs.get('pk')}, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post', 'delete'])
+    def eliminar(self, request, pk=None):
+        denied = self._check_comentario_permiso(request)
+        if denied:
+            return denied
+        instance = self.get_object()
+        instance.delete()
+        return Response({'status': 'deleted', 'id': pk}, status=status.HTTP_200_OK)
 
 
 class NotificacionViewSet(viewsets.ModelViewSet):

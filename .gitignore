@@ -31,6 +31,7 @@ cf.log
 cf_tunnel.log
 test-*.mjs
 resize.ps1
+scripts/*.exe
 
 # Environment
 .env

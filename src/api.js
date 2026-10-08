@@ -10,15 +10,30 @@ async function apiRequest(method, path, body = null) {
   if (body) opts.body = JSON.stringify(body);
 
   const res = await fetch(`${API_URL}${path}`, opts);
-  const data = await res.json();
+
+  if (res.status === 204 || res.headers.get('content-length') === '0') {
+    return null;
+  }
+
+  const text = await res.text();
+  let data = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    data = null;
+  }
+
   if (!res.ok) {
-    let msg = data.error || data.detail;
-    if (!msg && typeof data === 'object') {
+    let msg = data?.error || data?.detail;
+    if (!msg && data && typeof data === 'object') {
       msg = Object.entries(data)
         .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(' ') : v}`)
         .join(' | ');
     }
-    const err = new Error(msg || 'Error en la petición');
+    if (!msg && res.status === 405) {
+      msg = 'Método no permitido (405).';
+    }
+    const err = new Error(msg || text || `Error HTTP ${res.status}`);
     err.status = res.status;
     err.data = data;
     throw err;
@@ -284,7 +299,7 @@ export const tableroUsuarios = {
 
 // ─── TICKETS ─────────────────────────────────────────────
 export const tickets = {
-  async getByTablero(tableroId, ordering = 'posicion,fecha_creacion') {
+  async getByTablero(tableroId, ordering = 'posicion,-fecha_creacion') {
     try {
       const data = await apiRequest('GET', `/tickets/?tablero_id=${tableroId}&ordering=${ordering}`);
       return { data, error: null };
@@ -404,7 +419,15 @@ export const comentarios = {
 
   async delete(id) {
     try {
-      await apiRequest('DELETE', `/comentarios/${id}/`);
+      try {
+        await apiRequest('DELETE', `/comentarios/${id}/`);
+      } catch (err) {
+        if (err.status === 405 || (err.message && err.message.includes('405'))) {
+          await apiRequest('POST', `/comentarios/${id}/eliminar/`);
+        } else {
+          throw err;
+        }
+      }
       return { data: { id }, error: null };
     } catch (e) {
       return formatError(e);

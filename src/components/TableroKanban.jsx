@@ -81,72 +81,113 @@ const getPermisosByUser = (u, tablero) => {
 
 const COLUMNAS_BASE = ['Solicitud', 'En proceso', 'En espera', 'Resuelto'];
 
-const baseMinCache = {};
+const getNombreCompleto = (u) => {
+  if (!u) return '';
+  if (typeof u === 'string') return u.trim();
+  const nombre = (u.nombre || '').trim();
+  const apellido = (u.apellido || '').trim();
+  if (nombre && apellido) return `${nombre} ${apellido}`;
+  return nombre || apellido || u.email || '';
+};
+
 const getNumeroTicket = (ticket, allTickets) => {
   if (!ticket || ticket.prioridad === 'Nota') return null;
-  if (typeof ticket.id !== 'number') return ticket.id;
+  if (!Array.isArray(allTickets) || allTickets.length === 0) return ticket.id;
 
-  const tableroId = ticket.tablero_id || 'default';
-  const storageKey = `board_min_id_${tableroId}`;
+  const nonNotas = allTickets
+    .filter(t => t.prioridad !== 'Nota')
+    .sort((a, b) => (a.id || 0) - (b.id || 0));
 
-  let baseMin = baseMinCache[storageKey];
-  if (baseMin === undefined) {
-    baseMin = ticket.id;
-    if (Array.isArray(allTickets) && allTickets.length > 0) {
-      const nonNotas = allTickets.filter(t => t.prioridad !== 'Nota' && typeof t.id === 'number');
-      if (nonNotas.length > 0) {
-        baseMin = Math.min(...nonNotas.map(t => t.id));
-      }
-    }
-    try {
-      const cachedMin = localStorage.getItem(storageKey);
-      if (cachedMin && !isNaN(Number(cachedMin))) {
-        baseMin = Math.min(Number(cachedMin), baseMin);
-      }
-      localStorage.setItem(storageKey, baseMin);
-    } catch (e) {
-      // ignore
-    }
-    baseMinCache[storageKey] = baseMin;
-  } else if (ticket.id < baseMin) {
-    baseMin = ticket.id;
-    baseMinCache[storageKey] = baseMin;
-    try {
-      localStorage.setItem(storageKey, baseMin);
-    } catch (e) {
-      // ignore
-    }
-  }
-
-  const num = ticket.id - baseMin + 1;
-  return num > 0 ? num : ticket.id;
+  const idx = nonNotas.findIndex(t => t.id === ticket.id);
+  return idx !== -1 ? idx + 1 : ticket.id;
 };
 
 const getPrioridadColor = (prioridad) => {
   switch (prioridad) {
-    case 'Urgente': return 'badge-urgente';
-    case 'Alta': return 'bg-transparent text-red-700 dark:text-red-500 border-red-600/60 dark:border-red-500/60 font-black';
-    case 'Media': return 'bg-transparent text-emerald-700 dark:text-emerald-300 border-emerald-600/70 dark:border-emerald-400/70 font-bold';
-    case 'Baja': return 'bg-transparent text-slate-600 dark:text-slate-400 border-slate-400/60 dark:border-slate-500/60 font-semibold';
-    case 'Nota': return 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30 font-bold';
-    default: return 'bg-transparent text-slate-600 dark:text-slate-400 border-slate-400/60 dark:border-slate-500/60 font-semibold';
+    case 'Urgente':
+      return 'badge-urgente shadow-[0_0_12px_rgba(234,88,12,0.35)]';
+    case 'Alta':
+      return 'bg-red-500/10 dark:bg-red-950/30 text-red-600 dark:text-red-400 border-red-500/70 dark:border-red-400/60 font-black shadow-[0_0_8px_rgba(239,68,68,0.15)]';
+    case 'Media':
+      return 'bg-emerald-500/10 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-300 border-emerald-500/70 dark:border-emerald-400/60 font-bold shadow-[0_0_8px_rgba(16,185,129,0.15)]';
+    case 'Baja':
+      return 'bg-sky-500/10 dark:bg-sky-950/30 text-sky-600 dark:text-sky-400 border-sky-500/70 dark:border-sky-400/60 font-semibold shadow-[0_0_8px_rgba(14,165,233,0.15)]';
+    case 'Nota':
+      return 'bg-amber-500/10 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 border-amber-500/60 dark:border-amber-400/60 font-bold';
+    default:
+      return 'bg-slate-500/10 dark:bg-slate-800/30 text-slate-600 dark:text-slate-400 border-slate-400/60 dark:border-slate-500/60 font-semibold';
   }
 };
+
+const getPrioridadDot = (prioridad) => {
+  switch (prioridad) {
+    case 'Urgente':
+      return 'bg-white shadow-[0_0_6px_#ffffff] animate-ping';
+    case 'Alta':
+      return 'bg-red-500 dark:bg-red-400 shadow-[0_0_6px_#ef4444]';
+    case 'Media':
+      return 'bg-emerald-500 dark:bg-emerald-400 shadow-[0_0_6px_#10b981]';
+    case 'Baja':
+      return 'bg-sky-500 dark:bg-sky-400 shadow-[0_0_6px_#0ea5e9]';
+    case 'Nota':
+      return 'bg-amber-500 dark:bg-amber-400 shadow-[0_0_6px_#f59e0b]';
+    default:
+      return 'bg-slate-400 shadow-[0_0_6px_#94a3b8]';
+  }
+};
+
+const getNumeroTicketBadgeStyle = (prioridad) => {
+  switch (prioridad) {
+    case 'Urgente':
+      return 'border-orange-500/80 dark:border-orange-400/80 bg-orange-500/15 dark:bg-orange-950/40 text-orange-600 dark:text-orange-300 shadow-[0_0_12px_rgba(249,115,22,0.3)]';
+    case 'Alta':
+      return 'border-red-500/70 dark:border-red-400/70 bg-red-500/10 dark:bg-red-950/30 text-red-600 dark:text-red-400 shadow-[0_0_10px_rgba(239,68,68,0.2)]';
+    case 'Media':
+      return 'border-emerald-500/70 dark:border-emerald-400/70 bg-emerald-500/10 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-300 shadow-[0_0_10px_rgba(16,185,129,0.2)]';
+    case 'Baja':
+      return 'border-sky-500/70 dark:border-sky-400/70 bg-sky-500/10 dark:bg-sky-950/30 text-sky-600 dark:text-sky-400 shadow-[0_0_10px_rgba(14,165,233,0.2)]';
+    default:
+      return 'border-slate-400/70 dark:border-slate-500/70 bg-slate-500/10 dark:bg-slate-800/30 text-slate-600 dark:text-slate-400 shadow-sm';
+  }
+};
+
+const TicketIcon = ({ className = "w-3.5 h-3.5" }) => (
+  <svg className={`${className} shrink-0 -rotate-12`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z" />
+    <path d="M13 5v2" />
+    <path d="M13 11v2" />
+    <path d="M13 17v2" />
+  </svg>
+);
 
 
 const getInicial = (nombre) => {
   if (!nombre) return '?';
   const parts = nombre.trim().split(/\s+/);
   if (parts.length >= 2) {
-    return (parts[parts.length - 1].charAt(0) + parts[0].charAt(0)).toUpperCase();
+    return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
   }
   return parts[0].substring(0, 2).toUpperCase();
 };
 
-const TicketCard = React.memo(({ ticket, index, onClick, isReadOnly, numeroTicket: propNumeroTicket, allTickets, totalCols }) => {
+const formatResponsablesTexto = (respStr, usuariosList) => {
+  if (!respStr) return 'Sin asignar';
+  if (!Array.isArray(usuariosList) || usuariosList.length === 0) return respStr;
+  return respStr.split(',').map(r => r.trim()).filter(Boolean).map(r => {
+    const match = usuariosList.find(u => getNombreCompleto(u).toLowerCase() === r.toLowerCase() || (u.nombre || '').toLowerCase() === r.toLowerCase());
+    return match ? getNombreCompleto(match) : r;
+  }).join(', ');
+};
+
+const TicketCard = React.memo(({ ticket, index, onClick, isReadOnly, numeroTicket: propNumeroTicket, allTickets, totalCols, usuarios }) => {
   const numeroTicket = propNumeroTicket !== undefined ? propNumeroTicket : getNumeroTicket(ticket, allTickets);
   const maxAvatars = (totalCols && totalCols > 4) ? 2 : 3;
-  const respList = ticket.responsable ? ticket.responsable.split(',').map(r => r.trim()).filter(Boolean) : [];
+  const respListRaw = ticket.responsable ? ticket.responsable.split(',').map(r => r.trim()).filter(Boolean) : [];
+  const respList = respListRaw.map(r => {
+    if (!Array.isArray(usuarios) || usuarios.length === 0) return r;
+    const match = usuarios.find(u => getNombreCompleto(u).toLowerCase() === r.toLowerCase() || (u.nombre || '').toLowerCase() === r.toLowerCase());
+    return match ? getNombreCompleto(match) : r;
+  });
   const displayedAvatars = respList.slice(0, maxAvatars);
   const extraCount = respList.length - maxAvatars;
 
@@ -165,16 +206,30 @@ const TicketCard = React.memo(({ ticket, index, onClick, isReadOnly, numeroTicke
             <div className="flex-1 flex flex-col justify-between min-h-0">
               {/* Header: Prioridad, #ID, Área */}
               <div>
-                <div className="flex justify-between items-center mb-2 h-6">
-                  <div className="flex items-center gap-2">
-                    <span className={`text-[10px] uppercase tracking-wider font-bold px-2.5 py-0.5 rounded-lg border ${getPrioridadColor(ticket.prioridad)}`}>
+                <div className="flex justify-between items-center mb-2 min-h-[26px] gap-1.5">
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className={`text-[10px] uppercase tracking-wider font-bold px-2.5 py-0.5 rounded-full border ${getPrioridadColor(ticket.prioridad)} flex items-center gap-1.5 shrink-0`}>
+                      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${getPrioridadDot(ticket.prioridad)}`} />
                       {ticket.prioridad}
                     </span>
                     {ticket.prioridad !== 'Nota' && numeroTicket && (
-                      <span className="text-xs font-black text-slate-500 dark:text-neutral-400">#{numeroTicket}</span>
+                      <>
+                        <span className="text-slate-300 dark:text-slate-700/80 font-light text-xs select-none">|</span>
+                        <span className={`text-[11.5px] font-black px-2.5 py-0.5 rounded-full border flex items-center gap-1.5 transition-all shrink-0 ${getNumeroTicketBadgeStyle(ticket.prioridad)}`}>
+                          <TicketIcon className="w-3.5 h-3.5" />
+                          <span>#{numeroTicket}</span>
+                        </span>
+                      </>
                     )}
                   </div>
-                  {ticket.area && <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 group-hover:text-[#065E94] dark:group-hover:text-blue-400 transition-colors truncate max-w-[110px] text-right">{ticket.area}</span>}
+                  {ticket.area && (
+                    <span
+                      className="text-[10.5px] font-semibold text-slate-500 dark:text-slate-400 group-hover:text-[#065E94] dark:group-hover:text-blue-400 transition-colors truncate max-w-[105px] text-right ml-auto pl-1 shrink min-w-0"
+                      title={ticket.area}
+                    >
+                      {ticket.area}
+                    </span>
+                  )}
                 </div>
 
                 {/* Título: Altura uniforme fija de 2 líneas max */}
@@ -286,8 +341,9 @@ const TicketForm = ({ initialConfig, onSubmit, onCancel, user, usuarios, tipoTab
 
   const usuariosAsignables = React.useMemo(() => {
     return (usuarios || []).filter(u => {
+      const full = getNombreCompleto(u);
       // Si ya está asignado actualmente al ticket, mantenerlo para preservar compatibilidad con tickets existentes
-      if (responsablesSet.has(u.nombre)) return true;
+      if (responsablesSet.has(full) || responsablesSet.has(u.nombre)) return true;
       // Solo miembros del tablero actual
       if (u.rol_en_tablero != null) return true;
       if (tableroActual && (String(tableroActual.creador_id) === String(u.id) || String(tableroActual.creador) === String(u.id))) return true;
@@ -302,13 +358,15 @@ const TicketForm = ({ initialConfig, onSubmit, onCancel, user, usuarios, tipoTab
     );
   }, [initialConfig, tipoTablero]);
 
-  const toggleResponsable = React.useCallback((nombre) => {
+  const toggleResponsable = React.useCallback((u) => {
+    const full = getNombreCompleto(u);
     setLocalConfig(prev => {
       const current = prev.responsables || [];
-      const hasUser = current.includes(nombre);
+      const hasUser = current.some(r => r === full || r === u.nombre);
+      const filtered = current.filter(r => r !== full && r !== u.nombre);
       return {
         ...prev,
-        responsables: hasUser ? current.filter(r => r !== nombre) : [...current, nombre]
+        responsables: hasUser ? filtered : [...filtered, full]
       };
     });
   }, []);
@@ -316,12 +374,13 @@ const TicketForm = ({ initialConfig, onSubmit, onCancel, user, usuarios, tipoTab
   const handleSubmit = (e) => {
     e.preventDefault();
     if (tipoTablero === 'Personal') {
+      const creatorName = getNombreCompleto(user) || user?.nombre || 'Yo';
       onSubmit({
         ...localConfig,
-        solicitante: user?.nombre || 'Yo',
+        solicitante: creatorName,
         seccion_solicitante: 'Personal',
         area: 'Personal',
-        responsables: [user?.nombre]
+        responsables: [creatorName]
       });
     } else {
       onSubmit(localConfig);
@@ -569,21 +628,22 @@ const TicketForm = ({ initialConfig, onSubmit, onCancel, user, usuarios, tipoTab
                 </div>
               ) : (
                 usuariosAsignables.map(u => {
-                  const isChecked = responsablesSet.has(u.nombre);
+                  const full = getNombreCompleto(u);
+                  const isChecked = responsablesSet.has(full) || responsablesSet.has(u.nombre);
                   return (
                     <label key={u.id} className={`flex items-center gap-3 p-2.5 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-xl cursor-pointer transition-colors group border ${isChecked ? 'bg-blue-50/70 dark:bg-blue-900/25 border-blue-200/80 dark:border-blue-800/50' : 'border-transparent'}`}>
                       <input
                         type="checkbox"
                         checked={isChecked}
-                        onChange={() => toggleResponsable(u.nombre)}
+                        onChange={() => toggleResponsable(u)}
                         className="w-4 h-4 text-[#065E94] rounded border-slate-300 focus:ring-[#065E94] cursor-pointer shrink-0"
                         disabled={!misPermisos.editar_tickets}
                       />
                       <div className="w-7 h-7 rounded-full bg-[#065E94]/10 dark:bg-blue-500/20 text-[#065E94] dark:text-blue-300 font-extrabold flex items-center justify-center text-[10px] shrink-0 border border-[#065E94]/20 dark:border-blue-500/30">
-                        {getInicial(u.nombre)}
+                        {getInicial(full)}
                       </div>
                       <div className="flex flex-col min-w-0 flex-1">
-                        <span className="text-xs text-slate-700 dark:text-slate-200 font-bold group-hover:text-[#065E94] dark:group-hover:text-blue-400 transition-colors truncate">{u.nombre}</span>
+                        <span className="text-xs text-slate-700 dark:text-slate-200 font-bold group-hover:text-[#065E94] dark:group-hover:text-blue-400 transition-colors truncate">{full}</span>
                         <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium truncate">{u.dependencia || 'Sin dep.'}</span>
                       </div>
                     </label>
@@ -723,14 +783,30 @@ export default function TableroKanban() {
   };
 
   const handleTriggerMention = (targetType = 'desktop') => {
-    const inputRef = targetType === 'desktop' ? commentInputRefDesktop : commentInputRefMobile;
-    const currentVal = nuevoComentario || '';
+    let inputRef = commentInputRefDesktop;
+    let currentVal = nuevoComentario || '';
+    let setText = setNuevoComentario;
+
+    if (targetType === 'desktop') {
+      inputRef = commentInputRefDesktop;
+      currentVal = nuevoComentario || '';
+      setText = setNuevoComentario;
+    } else if (targetType === 'mobile') {
+      inputRef = commentInputRefMobile;
+      currentVal = nuevoComentario || '';
+      setText = setNuevoComentario;
+    } else if (targetType === 'edit') {
+      inputRef = editTextareaRef;
+      currentVal = textoEditado || '';
+      setText = setTextoEditado;
+    }
+
     const needsSpace = currentVal.length > 0 && !currentVal.endsWith(' ') && !currentVal.endsWith('\n');
     const newVal = currentVal + (needsSpace ? ' @' : '@');
-    setNuevoComentario(newVal);
+    setText(newVal);
     const newPos = newVal.length;
     setTimeout(() => {
-      if (inputRef.current) {
+      if (inputRef && inputRef.current) {
         inputRef.current.focus();
         inputRef.current.setSelectionRange(newPos, newPos);
       }
@@ -771,7 +847,7 @@ export default function TableroKanban() {
     const queryLen = mentionState.query ? mentionState.query.length : 0;
     const remainingText = textAfterAt.slice(queryLen);
 
-    const userName = selectedUser.nombre || selectedUser.username || 'usuario';
+    const userName = getNombreCompleto(selectedUser) || selectedUser.nombre || selectedUser.username || 'usuario';
     const newText = `${textBeforeAt}@${userName} ${remainingText}`;
     setText(newText);
     setMentionState({ active: false, query: '', index: 0, target: null, atPosition: -1 });
@@ -836,10 +912,13 @@ export default function TableroKanban() {
   const notificarMenciones = async (ticket, texto) => {
     if (!ticket || !texto || !user) return;
     const mentionedUsers = (usuariosDelTablero || []).filter(u => {
-      if (!u.nombre) return false;
-      const escaped = u.nombre.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const regex = new RegExp(`(?<=\\s|^|[([{"'])@${escaped}(?=\\s|[.,!?;:]|$)`, 'i');
-      return regex.test(texto);
+      const full = getNombreCompleto(u);
+      const first = (u.nombre || '').trim();
+      const escapedFull = full.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const escapedFirst = first ? first.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') : '';
+      const regexFull = new RegExp(`(?<=\\s|^|[([{"'])@${escapedFull}(?=\\s|[.,!?;:]|$)`, 'i');
+      const regexFirst = escapedFirst ? new RegExp(`(?<=\\s|^|[([{"'])@${escapedFirst}(?=\\s|[.,!?;:]|$)`, 'i') : null;
+      return regexFull.test(texto) || (regexFirst && regexFirst.test(texto));
     });
 
     if (mentionedUsers.length > 0) {
@@ -875,7 +954,7 @@ export default function TableroKanban() {
     if (!texto) return null;
 
     const names = (usuariosDelTablero || [])
-      .map(u => u.nombre?.trim())
+      .flatMap(u => [getNombreCompleto(u), u.nombre?.trim()])
       .filter(Boolean)
       .sort((a, b) => b.length - a.length);
 
@@ -891,8 +970,10 @@ export default function TableroKanban() {
 
     return parts.map((part, i) => {
       if (part && part.startsWith('@')) {
-        const rawName = part.slice(1).trim();
-        const isMe = user?.nombre && rawName.toLowerCase() === user.nombre.toLowerCase();
+        const rawName = part.slice(1).trim().toLowerCase();
+        const myFull = user ? getNombreCompleto(user).toLowerCase() : '';
+        const myFirst = (user?.nombre || '').toLowerCase();
+        const isMe = (myFull && rawName === myFull) || (myFirst && rawName === myFirst);
 
         let badgeClasses = '';
         if (esMio && !hasImage) {
@@ -919,8 +1000,28 @@ export default function TableroKanban() {
   const renderMentionDropdown = (targetType) => {
     if (!mentionState.active || mentionState.target !== targetType) return null;
 
+    let isDropUp = true;
+    if (targetType === 'edit') {
+      if (editTextareaRef.current && commentsContainerRef.current) {
+        const editRect = editTextareaRef.current.getBoundingClientRect();
+        const containerRect = commentsContainerRef.current.getBoundingClientRect();
+        const spaceAbove = editRect.top - containerRect.top;
+        const spaceBelow = containerRect.bottom - editRect.bottom;
+        if (spaceAbove < 220 && spaceBelow >= 120) {
+          isDropUp = false;
+        } else if (spaceBelow < 220 && spaceAbove >= 120) {
+          isDropUp = true;
+        } else {
+          isDropUp = spaceAbove >= spaceBelow;
+        }
+      } else {
+        const editIndex = reversedComentarios.findIndex(c => c.id === comentarioAEditar);
+        isDropUp = editIndex > 1;
+      }
+    }
+
     return (
-      <div className="absolute bottom-full mb-2 left-0 right-0 z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-slate-200 dark:border-slate-700/80 rounded-2xl shadow-2xl overflow-hidden max-h-56 flex flex-col animate-in fade-in slide-in-from-bottom-2 duration-150">
+      <div className={`absolute ${isDropUp ? 'bottom-full mb-2 slide-in-from-bottom-2' : 'top-full mt-2 slide-in-from-top-2'} left-0 right-0 z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-slate-200 dark:border-slate-700/80 rounded-2xl shadow-2xl overflow-hidden max-h-56 flex flex-col animate-in fade-in duration-150`}>
         <div className="px-3 py-1.5 bg-slate-50/90 dark:bg-slate-800/60 border-b border-slate-200/60 dark:border-slate-700/50 flex items-center justify-between text-[11px] font-semibold text-slate-500 dark:text-slate-400">
           <span className="flex items-center gap-1.5">
             <span className="text-[#065E94] dark:text-blue-400 font-extrabold text-xs">@</span> Mencionar miembro del tablero
@@ -953,11 +1054,11 @@ export default function TableroKanban() {
                     }`}
                 >
                   <div className="w-7 h-7 rounded-full bg-[#065E94]/10 dark:bg-blue-500/20 text-[#065E94] dark:text-blue-300 font-extrabold flex items-center justify-center text-[10px] shrink-0 border border-[#065E94]/20 dark:border-blue-500/30">
-                    {getInicial(u.nombre)}
+                    {getInicial(getNombreCompleto(u))}
                   </div>
                   <div className="flex flex-col min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-bold truncate">{u.nombre}</span>
+                      <span className="text-xs font-bold truncate">{getNombreCompleto(u)}</span>
                       {u.rol_en_tablero && (
                         <span className="text-[9.5px] px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-semibold border border-slate-200/50 dark:border-slate-700/50">
                           {u.rol_en_tablero}
@@ -1181,6 +1282,14 @@ export default function TableroKanban() {
 
   // 1. Carga inicial de datos y WebSockets (Realtime)
   useEffect(() => {
+    try {
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('board_min_id_')) localStorage.removeItem(key);
+      });
+    } catch (e) {
+      // ignore
+    }
+
     fetchData(false);
 
     // Polling interval to simulate realtime updates
@@ -1329,7 +1438,7 @@ export default function TableroKanban() {
     const data = columnasActivas.reduce((acc, colName) => {
       acc[colName] = tickets
         .filter(t => t.estado === colName)
-        .sort((a, b) => (a.posicion ?? 0) - (b.posicion ?? 0) || new Date(a.fecha_creacion) - new Date(b.fecha_creacion));
+        .sort((a, b) => (a.posicion ?? 0) - (b.posicion ?? 0) || new Date(b.fecha_creacion) - new Date(a.fecha_creacion) || (b.id - a.id));
       return acc;
     }, {});
 
@@ -1342,13 +1451,17 @@ export default function TableroKanban() {
     return data;
   }, [tickets, columnasActivas]);
 
-  // Mapeo memoizado de números de ticket para evitar recálculos y lecturas sincrónicas en cada tarjeta
+  // Mapeo memoizado de números de ticket consecutivos por tablero (#1, #2, #3...)
   const numerosTicketsMap = React.useMemo(() => {
     const map = {};
     if (!Array.isArray(tickets) || tickets.length === 0) return map;
-    for (const t of tickets) {
-      map[t.id] = getNumeroTicket(t, tickets);
-    }
+    const nonNotas = tickets
+      .filter(t => t.prioridad !== 'Nota')
+      .sort((a, b) => (a.id || 0) - (b.id || 0));
+
+    nonNotas.forEach((t, idx) => {
+      map[t.id] = idx + 1;
+    });
     return map;
   }, [tickets]);
 
@@ -1600,6 +1713,9 @@ export default function TableroKanban() {
         };
         if (estado && (columnasActivas || []).includes(estado)) {
           updatePayload.estado = estado;
+          if (ticketViejo && ticketViejo.estado !== estado) {
+            updatePayload.posicion = 0;
+          }
         }
         if (email_solicitante && email_solicitante.trim()) {
           updatePayload.email_solicitante = email_solicitante.trim();
@@ -1643,10 +1759,14 @@ export default function TableroKanban() {
             const viejosResp = ticketViejo.responsable
               ? ticketViejo.responsable.split(',').map(r => r.trim()).filter(Boolean)
               : [];
-            const nuevosAsignados = respList.filter(r => !viejosResp.includes(r));
+            const viejosRespNorm = viejosResp.map(r => {
+              const m = (usuarios || []).find(u => getNombreCompleto(u).toLowerCase() === r.toLowerCase() || (u.nombre || '').toLowerCase() === r.toLowerCase());
+              return m ? getNombreCompleto(m) : r;
+            });
+            const nuevosAsignados = respList.filter(r => !viejosRespNorm.includes(r) && !viejosResp.includes(r));
             if (nuevosAsignados.length > 0) {
               const notifEdicionPayload = (usuarios || [])
-                .filter(u => u.id !== user.id && nuevosAsignados.includes(u.nombre))
+                .filter(u => u.id !== user.id && (nuevosAsignados.includes(getNombreCompleto(u)) || nuevosAsignados.includes(u.nombre)))
                 .map(u => ({
                   usuario_id: u.id,
                   ticket_id: id,
@@ -1662,7 +1782,7 @@ export default function TableroKanban() {
               }
 
               // Enviar mail de aviso a los nuevos usuarios asignados
-              const usuariosParaEmail = (usuarios || []).filter(u => nuevosAsignados.includes(u.nombre));
+              const usuariosParaEmail = (usuarios || []).filter(u => nuevosAsignados.includes(getNombreCompleto(u)) || nuevosAsignados.includes(u.nombre));
               const numTicket = getNumeroTicket(ticketViejo, tickets) || id;
               enviarNotificacionesBatch({
                 tipo: 'asignacion',
@@ -1704,7 +1824,8 @@ export default function TableroKanban() {
           responsable,
           tablero_id: tableroId,
           solicitante: (solicitante || '').trim(),
-          seccion_solicitante: (seccion_solicitante || '').trim()
+          seccion_solicitante: (seccion_solicitante || '').trim(),
+          posicion: 0
         };
         if (email_solicitante && email_solicitante.trim()) {
           payload.email_solicitante = email_solicitante.trim();
@@ -1783,7 +1904,7 @@ export default function TableroKanban() {
           // Crear las notificaciones SOLO para los usuarios asignados al ticket (excepto si el creador se auto-asignó) y SOLO si no es una Nota
           if (prioridad !== 'Nota' && respList.length > 0) {
             const notificacionesPayload = (usuarios || [])
-              .filter(u => u.id !== user.id && respList.includes(u.nombre))
+              .filter(u => u.id !== user.id && (respList.includes(getNombreCompleto(u)) || respList.includes(u.nombre)))
               .map(u => ({
                 usuario_id: u.id,
                 ticket_id: nuevoTicketId,
@@ -1801,7 +1922,7 @@ export default function TableroKanban() {
             }
 
             // Enviar mail de aviso por asignación a los usuarios asignados
-            const usuariosAsignadosEmail = (usuarios || []).filter(u => respList.includes(u.nombre));
+            const usuariosAsignadosEmail = (usuarios || []).filter(u => respList.includes(getNombreCompleto(u)) || respList.includes(u.nombre));
             const numeroTicketAsignacion = getNumeroTicket(data, [...tickets, data]);
             enviarNotificacionesBatch({
               tipo: 'asignacion',
@@ -2247,7 +2368,7 @@ export default function TableroKanban() {
                       const term = busqueda.toLowerCase().trim();
                       const filtered = tickets.filter(t => {
                         const dateStr = formatFechaCorta(t.fecha_creacion);
-                        const numTkt = getNumeroTicket(t, tickets);
+                        const numTkt = numerosTicketsMap[t.id] || getNumeroTicket(t, tickets);
                         return t.titulo?.toLowerCase().includes(term) ||
                           t.solicitante?.toLowerCase().includes(term) ||
                           t.responsable?.toLowerCase().includes(term) ||
@@ -2286,7 +2407,7 @@ export default function TableroKanban() {
                               {t.titulo}
                             </p>
                             <p className="text-[11px] font-medium text-slate-500 dark:text-neutral-400 leading-tight mb-1.5 truncate">
-                              Fecha: {formatFecha(t.fecha_creacion)} | {t.prioridad !== 'Nota' ? `Ticket #${getNumeroTicket(t, tickets)}` : 'Nota'} | Asignado a: {t.responsable || 'Sin asignar'} | Solicitante: {t.solicitante || 'Desconocido'}
+                              Fecha: {formatFecha(t.fecha_creacion)} | {t.prioridad !== 'Nota' ? `Ticket #${numerosTicketsMap[t.id] || getNumeroTicket(t, tickets)}` : 'Nota'} | Asignado a: {formatResponsablesTexto(t.responsable, usuarios)} | Solicitante: {t.solicitante || 'Desconocido'}
                             </p>
                             <p className="text-[10px] font-extrabold text-slate-400 dark:text-neutral-500 uppercase tracking-widest flex items-center gap-1.5">
                               {t.departamento === 'Soporte Técnico' ? 'MESA DE AYUDA' : t.departamento}: {t.estado.toUpperCase()}
@@ -2475,7 +2596,7 @@ export default function TableroKanban() {
                         const term = busqueda.toLowerCase().trim();
                         const filtered = tickets.filter(t => {
                           const dateStr = formatFechaCorta(t.fecha_creacion);
-                          const numTkt = getNumeroTicket(t, tickets);
+                          const numTkt = numerosTicketsMap[t.id] || getNumeroTicket(t, tickets);
                           return t.titulo?.toLowerCase().includes(term) ||
                             t.solicitante?.toLowerCase().includes(term) ||
                             t.responsable?.toLowerCase().includes(term) ||
@@ -2515,7 +2636,7 @@ export default function TableroKanban() {
                                 {t.titulo}
                               </p>
                               <p className="text-[11px] font-medium text-slate-500 dark:text-neutral-400 leading-tight mb-1.5 truncate">
-                                {t.prioridad !== 'Nota' ? `Ticket #${getNumeroTicket(t, tickets)}` : 'Nota'} | Asignado: {t.responsable || 'Sin asignar'}
+                                {t.prioridad !== 'Nota' ? `Ticket #${numerosTicketsMap[t.id] || getNumeroTicket(t, tickets)}` : 'Nota'} | Asignado: {formatResponsablesTexto(t.responsable, usuarios)}
                               </p>
                             </div>
                           </div>
@@ -2647,6 +2768,7 @@ export default function TableroKanban() {
                                 isReadOnly={!misPermisos.mover_tarjetas}
                                 numeroTicket={numerosTicketsMap[ticket.id]}
                                 totalCols={columnasActivas.length}
+                                usuarios={usuarios}
                               />
                             ))
                           )}
@@ -2888,11 +3010,21 @@ export default function TableroKanban() {
 
             <div className="bg-slate-50 dark:bg-[var(--bg-secondary)] p-5 rounded-2xl border border-slate-100 dark:border-[var(--border-accent)]/30 mb-6 flex items-center gap-4">
               <div className="w-14 h-14 rounded-full bg-blue-100 dark:bg-[var(--bg-secondary)] text-[#065E94] dark:text-white text-xl font-bold flex items-center justify-center shadow-inner shrink-0">
-                {getInicial(usuarios.find(u => u.id === user.id)?.nombre || user?.email)}
+                {(() => {
+                  const perfilUser = usuarios.find(u => u.id === user.id);
+                  const perfilNombre = perfilUser ? getNombreCompleto(perfilUser) : (user?.email || '');
+                  return getInicial(perfilNombre);
+                })()}
               </div>
               <div className="flex flex-col truncate">
-                <span className="text-lg font-bold text-slate-800 dark:text-white truncate" title={usuarios.find(u => u.id === user.id)?.nombre || user.email}>
-                  {usuarios.find(u => u.id === user.id)?.nombre || user.email}
+                <span className="text-lg font-bold text-slate-800 dark:text-white truncate" title={(() => {
+                  const perfilUser = usuarios.find(u => u.id === user.id);
+                  return perfilUser ? getNombreCompleto(perfilUser) : user?.email;
+                })()}>
+                  {(() => {
+                    const perfilUser = usuarios.find(u => u.id === user.id);
+                    return perfilUser ? getNombreCompleto(perfilUser) : user?.email;
+                  })()}
                 </span>
                 <span className="text-sm text-slate-500 dark:text-neutral-400 truncate" title={user.email}>{user.email}</span>
                 <div className="mt-1 flex flex-wrap gap-1">
@@ -2978,7 +3110,7 @@ export default function TableroKanban() {
                       >
                         <option value="">Selecciona un usuario...</option>
                         {usuarios.filter(u => u.rol_en_tablero === null).map(u => (
-                          <option key={u.id} value={u.id}>{u.nombre} ({u.email})</option>
+                          <option key={u.id} value={u.id}>{getNombreCompleto(u)} ({u.email})</option>
                         ))}
                       </select>
                     </div>
@@ -3041,13 +3173,13 @@ export default function TableroKanban() {
                         <div className="flex items-center gap-2.5 sm:gap-4 w-full">
                           {/* Avatar Inicial */}
                           <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-[#065E94] to-blue-500 text-white font-extrabold flex items-center justify-center text-[11px] sm:text-xs shadow-md border border-white/20 shrink-0">
-                            {getInicial(u.nombre)}
+                            {getInicial(getNombreCompleto(u))}
                           </div>
 
                           {/* Info de Usuario */}
                           <div className="flex-1 min-w-0">
                             <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                              <h4 className="font-bold text-slate-800 dark:text-white text-[13px] sm:text-[14px] truncate" title={u.nombre}>{u.nombre}</h4>
+                              <h4 className="font-bold text-slate-800 dark:text-white text-[13px] sm:text-[14px] truncate" title={getNombreCompleto(u)}>{getNombreCompleto(u)}</h4>
 
                               {/* Badge de Rol en Tablero */}
                               {isCreatorOfBoard ? (
@@ -3168,7 +3300,7 @@ export default function TableroKanban() {
                   <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
                 </div>
                 <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">Eliminar Miembro</h3>
-                <p className="text-sm text-slate-500 dark:text-neutral-400 mb-6">¿Estás seguro que deseas eliminar a <b>{usuarioAEliminar.nombre}</b> de este tablero? El usuario conservará su cuenta global en el sistema.</p>
+                <p className="text-sm text-slate-500 dark:text-neutral-400 mb-6">¿Estás seguro que deseas eliminar a <b>{getNombreCompleto(usuarioAEliminar)}</b> de este tablero? El usuario conservará su cuenta global en el sistema.</p>
                 <div className="flex gap-3 justify-center">
                   <button onClick={() => setUsuarioAEliminar(null)} className="flex-1 px-4 py-2.5 rounded-xl font-semibold text-slate-600 dark:text-neutral-300 bg-slate-100 dark:bg-[var(--bg-secondary)] hover:bg-slate-200 dark:hover:bg-zinc-700 transition-colors">Cancelar</button>
                   <button onClick={handleEliminarMiembro} className="flex-1 px-4 py-2.5 rounded-xl font-semibold text-white bg-red-500 hover:bg-red-600 shadow-lg shadow-red-500/30 dark:shadow-none transition-all hover:-translate-y-0.5 dark:hover:-translate-y-0">Sí, eliminar</button>
@@ -3187,15 +3319,22 @@ export default function TableroKanban() {
               {/* ===== COLUMNA IZQUIERDA: Info del ticket ===== */}
               <div className="flex-1 min-w-0 p-5 md:p-8 md:overflow-y-auto custom-scrollbar flex flex-col [contain:content]">
                 <div className="flex items-center justify-between mb-4 md:mb-6">
-                  <span className={`text-[10px] md:text-[11px] uppercase tracking-widest font-bold px-2.5 py-1.5 md:px-3 rounded-xl border ${getPrioridadColor(ticketActivo.prioridad)}`}>
-                    Prioridad {ticketActivo.prioridad}
-                  </span>
-                  <div className="flex items-center gap-1.5 md:gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className={`text-[10px] md:text-[11px] uppercase tracking-widest font-bold px-3 py-1.5 md:px-3.5 md:py-2 rounded-full border ${getPrioridadColor(ticketActivo.prioridad)} flex items-center gap-2`}>
+                      <span className={`w-2 h-2 rounded-full shrink-0 ${getPrioridadDot(ticketActivo.prioridad)}`} />
+                      Prioridad {ticketActivo.prioridad}
+                    </span>
                     {ticketActivo.prioridad !== 'Nota' && (
-                      <span className="text-[10px] md:text-[11px] font-extrabold px-2 py-1.5 md:px-2.5 rounded-xl border border-slate-200 dark:border-[var(--border-accent)] bg-slate-100/80 dark:bg-[var(--bg-secondary)] text-slate-500 dark:text-slate-400 tracking-widest">
-                        #{numerosTicketsMap[ticketActivo.id] || getNumeroTicket(ticketActivo, tickets)}
-                      </span>
+                      <>
+                        <span className="text-slate-300 dark:text-slate-700/80 font-light select-none">|</span>
+                        <span className={`text-xs md:text-sm font-black px-3 py-1 md:py-1.5 rounded-full border flex items-center gap-1.5 transition-all ${getNumeroTicketBadgeStyle(ticketActivo.prioridad)}`}>
+                          <TicketIcon className="w-4 h-4" />
+                          <span>#{numerosTicketsMap[ticketActivo.id] || getNumeroTicket(ticketActivo, tickets)}</span>
+                        </span>
+                      </>
                     )}
+                  </div>
+                  <div className="flex items-center gap-1.5 md:gap-2">
                     {/* Editar y Eliminar */}
 
                     <button
@@ -3421,13 +3560,20 @@ export default function TableroKanban() {
                     ) : (
                       <div className="flex flex-wrap gap-2.5">
                         {ticketActivo.responsable.split(',').map(r => r.trim()).filter(Boolean).map((nombreResp, idx) => {
+                          const match = (usuarios || []).find(u => {
+                            const full = getNombreCompleto(u).toLowerCase();
+                            const first = (u.nombre || '').toLowerCase();
+                            const target = nombreResp.toLowerCase();
+                            return full === target || first === target;
+                          });
+                          const dispName = match ? getNombreCompleto(match) : nombreResp;
                           return (
-                            <div key={idx} className="flex items-center gap-2 bg-white/70 dark:bg-[var(--bg-secondary)] border border-slate-200/80 dark:border-[var(--border-accent)]/80 pr-3.5 pl-1.5 py-1.5 rounded-full shadow-sm hover:shadow transition-shadow max-w-[200px]">
+                            <div key={idx} className="flex items-center gap-2 bg-white/70 dark:bg-[var(--bg-secondary)] border border-slate-200/80 dark:border-[var(--border-accent)]/80 pr-3.5 pl-1.5 py-1.5 rounded-full shadow-sm hover:shadow transition-shadow max-w-[220px]">
                               <div className="w-7 h-7 rounded-full bg-blue-100/90 dark:bg-[#043d63] text-[#065E94] dark:text-blue-100 flex items-center justify-center text-xs font-extrabold border border-white/60 dark:border-[var(--border-accent)] shadow-sm shrink-0">
-                                {getInicial(nombreResp)}
+                                {getInicial(dispName)}
                               </div>
-                              <p className="text-xs font-bold text-slate-800 dark:text-slate-200 leading-none truncate" title={nombreResp}>
-                                {nombreResp}
+                              <p className="text-xs font-bold text-slate-800 dark:text-slate-200 leading-none truncate" title={dispName}>
+                                {dispName}
                               </p>
                             </div>
                           );
@@ -3450,7 +3596,7 @@ export default function TableroKanban() {
 
                 <div className="flex-1 flex flex-col md:overflow-hidden p-4 md:p-6">
                   {/* Lista de Comentarios */}
-                  <div ref={commentsContainerRef} className="flex-1 md:overflow-y-auto custom-scrollbar pr-1 space-y-3 mb-3 [contain:content]">
+                  <div ref={commentsContainerRef} className="flex-1 md:overflow-y-auto custom-scrollbar pr-1 space-y-3 mb-3">
                     {/* Elemento invisible para el auto-scroll al mensaje más nuevo (arriba) */}
                     <div ref={mensajesTopRef} />
                     {comentarios.length === 0 ? (
@@ -3490,7 +3636,7 @@ export default function TableroKanban() {
                                       {renderTextoComentario(cleanTexto, false, false)}
                                     </p>
                                     <span className="text-[9.5px] text-slate-400 dark:text-neutral-500 font-bold mt-1 uppercase tracking-wider">
-                                      {userObj?.nombre || 'Sistema'} • {formatFechaHora(c.created_at)}
+                                      {userObj ? getNombreCompleto(userObj) : 'Sistema'} • {formatFechaHora(c.created_at)}
                                     </span>
                                   </div>
                                 </div>
@@ -3511,7 +3657,7 @@ export default function TableroKanban() {
                                     {renderTextoComentario(cleanTexto, false, false)}
                                   </p>
                                   <span className="text-[9.5px] text-slate-400 dark:text-neutral-500 font-bold mt-0.5">
-                                    {userObj?.nombre || 'Sistema'} • {formatFechaHora(c.created_at)}
+                                    {userObj ? getNombreCompleto(userObj) : 'Sistema'} • {formatFechaHora(c.created_at)}
                                   </span>
                                 </div>
                               </div>
@@ -3520,10 +3666,10 @@ export default function TableroKanban() {
                         }
 
                         return (
-                          <div key={c.id} className={`flex flex-col max-w-[85%] min-w-0 ${esMio ? 'ml-auto items-end' : 'mr-auto items-start'} group`}>
+                          <div key={c.id} className={`flex flex-col max-w-[85%] min-w-0 ${esMio ? 'ml-auto items-end' : 'mr-auto items-start'} group ${isEditing ? 'relative z-30' : 'relative z-0'}`}>
                             <div className="flex items-center gap-2 mb-1 px-1">
                               <span className="text-[10px] text-slate-400 font-bold">
-                                {userObj?.nombre || 'Usuario Desconocido'} • {formatFechaHora(c.created_at)}
+                                {userObj ? getNombreCompleto(userObj) : 'Usuario Desconocido'} • {formatFechaHora(c.created_at)}
                               </span>
                               {esMio && !isEditing && comentarioAEliminar !== c.id && (
                                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -3538,7 +3684,7 @@ export default function TableroKanban() {
                             </div>
 
                             {isEditing ? (
-                              <div className="relative p-3.5 rounded-2xl text-sm shadow-xl w-full min-w-[260px] md:min-w-[340px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/80">
+                              <div className="relative z-30 p-3.5 rounded-2xl text-sm shadow-xl w-full min-w-[260px] md:min-w-[340px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/80">
                                 {renderMentionDropdown('edit')}
                                 <div className="flex items-center justify-between mb-2">
                                   <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
@@ -3547,7 +3693,13 @@ export default function TableroKanban() {
                                     </svg>
                                     Editar comentario
                                   </span>
-                                  <span className="text-[10px] text-slate-400 dark:text-slate-500">Usa @ para mencionar</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleTriggerMention('edit')}
+                                    className="text-[10px] text-slate-400 hover:text-[#065E94] dark:hover:text-blue-400 font-semibold transition-colors cursor-pointer"
+                                  >
+                                    Usa @ para mencionar
+                                  </button>
                                 </div>
                                 <textarea
                                   autoFocus

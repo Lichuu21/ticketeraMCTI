@@ -7,6 +7,7 @@ import { CSS } from '@dnd-kit/utilities';
 import GestionUsuariosGlobal from '../components/GestionUsuariosGlobal';
 import ModalHerramientasComplementarias from '../components/ModalHerramientasComplementarias';
 import { parseTableroConfig, buildTableroConfig } from '../utils/configTablero';
+import { APP_VERSION, LAST_UPDATE } from '../version';
 import api from '../api';
 
 export default function Dashboard() {
@@ -135,7 +136,11 @@ export default function Dashboard() {
 
   const getInicial = (nombre) => {
     if (!nombre) return '?';
-    return nombre.charAt(0).toUpperCase();
+    const parts = nombre.trim().split(/\s+/);
+    if (parts.length >= 2) {
+      return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+    }
+    return parts[0].substring(0, 2).toUpperCase();
   };
 
   const cargarTableros = async () => {
@@ -415,7 +420,7 @@ export default function Dashboard() {
               title="Ver perfil y configuración"
             >
               <div className="text-[#065E94] dark:text-neutral-300 font-extrabold text-sm group-hover:scale-110 transition-transform">
-                {getInicial(usuarioPerfil?.nombre || usuarioPerfil?.apellido || user?.email)}
+                {getInicial([usuarioPerfil?.nombre, usuarioPerfil?.apellido].filter(Boolean).join(' ') || user?.email)}
               </div>
             </button>
           </div>
@@ -929,23 +934,30 @@ export default function Dashboard() {
             </button>
           </div>
 
-          <div className="bg-slate-50 dark:bg-black/20 p-5 rounded-2xl border border-slate-100 dark:border-white/5 mb-6 flex items-center gap-4">
-            <div className="w-14 h-14 rounded-full bg-blue-100 dark:bg-white/10 text-[#065E94] dark:text-white text-xl font-bold flex items-center justify-center shadow-inner shrink-0">
-              {getInicial(usuarioPerfil?.nombre || user?.email)}
-            </div>
-            <div className="flex flex-col truncate">
-              <span className="text-lg font-bold text-slate-800 dark:text-white truncate" title={`${usuarioPerfil?.nombre || ''} ${usuarioPerfil?.apellido || ''}`}>
-                {usuarioPerfil?.nombre || ''} {usuarioPerfil?.apellido || ''}
-              </span>
-              <span className="text-sm text-slate-500 dark:text-neutral-400 truncate" title={user?.email}>{user?.email}</span>
-              <div className="mt-1 flex flex-wrap gap-1">
-                {(usuarioPerfil?.roles_detalle || []).map(rol => (
-                  <span key={rol.id} className="text-[10px] uppercase font-bold text-[#065E94] dark:text-blue-400 tracking-wider bg-blue-50 dark:bg-blue-500/10 px-2 py-0.5 rounded-md border border-blue-100/50 dark:border-blue-800/50">{rol.nombre}</span>
-                ))}
-                {(!usuarioPerfil?.roles_detalle || usuarioPerfil.roles_detalle.length === 0) && (
-                  <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider bg-slate-100 dark:bg-white/5 px-2 py-0.5 rounded-md">Sin roles</span>
-                )}
+          <div className="bg-slate-50 dark:bg-black/20 p-5 rounded-2xl border border-slate-100 dark:border-white/5 mb-6">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 rounded-full bg-blue-100 dark:bg-white/10 text-[#065E94] dark:text-white text-xl font-bold flex items-center justify-center shadow-inner shrink-0">
+                {getInicial([usuarioPerfil?.nombre, usuarioPerfil?.apellido].filter(Boolean).join(' ') || user?.email)}
               </div>
+              <div className="flex flex-col truncate">
+                <span className="text-lg font-bold text-slate-800 dark:text-white truncate" title={`${usuarioPerfil?.nombre || ''} ${usuarioPerfil?.apellido || ''}`}>
+                  {usuarioPerfil?.nombre || ''} {usuarioPerfil?.apellido || ''}
+                </span>
+                <span className="text-sm text-slate-500 dark:text-neutral-400 truncate" title={user?.email}>{user?.email}</span>
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {(usuarioPerfil?.roles_detalle || []).map(rol => (
+                    <span key={rol.id} className="text-[10px] uppercase font-bold text-[#065E94] dark:text-blue-400 tracking-wider bg-blue-50 dark:bg-blue-500/10 px-2 py-0.5 rounded-md border border-blue-100/50 dark:border-blue-800/50">{rol.nombre}</span>
+                  ))}
+                  {(!usuarioPerfil?.roles_detalle || usuarioPerfil.roles_detalle.length === 0) && (
+                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider bg-slate-100 dark:bg-white/5 px-2 py-0.5 rounded-md">Sin roles</span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 pt-3 border-t border-slate-200/70 dark:border-white/10 flex items-center justify-between text-xs text-slate-400 dark:text-neutral-500 select-none">
+              <span className="font-medium text-slate-500 dark:text-neutral-400">Version</span>
+              <span className="font-semibold text-slate-600 dark:text-neutral-300">v{APP_VERSION} ({LAST_UPDATE})</span>
             </div>
           </div>
 
