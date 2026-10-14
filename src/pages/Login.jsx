@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../api';
 
 export default function Login() {
@@ -16,6 +16,10 @@ export default function Login() {
 
     const { login, user, resetPasswordForEmail, loading: authLoading } = useAuth();
     const navigate = useNavigate();
+    const location = useLocation();
+    const redirectPath = location.state?.from
+        ? `${location.state.from.pathname}${location.state.from.search || ''}`
+        : '/';
 
     const handleForgotPassword = async (e) => {
         e.preventDefault();
@@ -55,7 +59,7 @@ export default function Login() {
                     setLoading(false);
                 } else {
                     setLoading(false);
-                    navigate('/');
+                    navigate(redirectPath, { replace: true });
                 }
             }
         } catch (err) {
@@ -88,7 +92,7 @@ export default function Login() {
                 setLoading(false);
             } else {
                 setLoading(false);
-                navigate('/');
+                navigate(redirectPath, { replace: true });
             }
         } catch (err) {
             setErrorMsg('Error al actualizar la contraseña: ' + (err.message || 'Error inesperado'));

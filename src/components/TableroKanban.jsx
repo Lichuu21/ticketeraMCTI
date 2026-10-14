@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import api from '../api';
@@ -673,6 +673,8 @@ export default function TableroKanban() {
   const { user, logout } = useAuth();
   const { id: tableroId } = useParams();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const ticketParamId = searchParams.get('ticket') || searchParams.get('ticketId');
 
   const [departamentoActivo, setDepartamentoActivo] = useState(DEPARTAMENTOS[0]);
 
@@ -694,6 +696,7 @@ export default function TableroKanban() {
   const [mostrarEstadisticas, setMostrarEstadisticas] = useState(false);
   const [detalleOpen, setDetalleOpen] = useState(false);
   const [ticketActivo, setTicketActivo] = useState(null);
+  const [enlaceCopiado, setEnlaceCopiado] = useState(false);
   const [usuarioAEliminar, setUsuarioAEliminar] = useState(null);
   const [usuarioAAñadir, setUsuarioAAñadir] = useState('');
   const [rolesEditados, setRolesEditados] = useState({});
@@ -945,7 +948,8 @@ export default function TableroKanban() {
         ticket,
         autor: user,
         comentario: texto,
-        numeroTicket: numTicket
+        numeroTicket: numTicket,
+        tableroId: tableroId || ticket?.tablero_id || ticket?.tablero
       });
     }
   };
@@ -1113,6 +1117,18 @@ export default function TableroKanban() {
 
     setTicketActivo(ticket);
     setDetalleOpen(true);
+
+    // Sincronizar URL de forma limpia (?ticket=ID)
+    setSearchParams(prev => {
+      const p = new URLSearchParams(prev);
+      if (p.get('ticket') !== String(ticket.id)) {
+        p.set('ticket', ticket.id);
+        p.delete('ticketId');
+        return p;
+      }
+      return prev;
+    }, { replace: true });
+
     if (commentsCacheRef.current[ticket.id]) {
       setComentarios(commentsCacheRef.current[ticket.id]);
     } else {
@@ -1128,8 +1144,54 @@ export default function TableroKanban() {
           .then(({ error }) => { if (error) console.error("Error marcando notificación leída:", error); });
       }
     }
-  }, []);
+  }, [setSearchParams]);
 
+  const cerrarDetalle = React.useCallback(() => {
+    setDetalleOpen(false);
+    setTicketActivo(null);
+    setSearchParams(prev => {
+      if (prev.has('ticket') || prev.has('ticketId')) {
+        const p = new URLSearchParams(prev);
+        p.delete('ticket');
+        p.delete('ticketId');
+        return p;
+      }
+      return prev;
+    }, { replace: true });
+  }, [setSearchParams]);
+
+  // Abrir ticket automáticamente si viene por URL (?ticket=ID o ?ticketId=ID)
+  const ticketParamProcessedRef = useRef(null);
+
+  useEffect(() => {
+    if (!ticketParamId || ticketParamProcessedRef.current === ticketParamId || loading) return;
+
+    const tkt = tickets.find(t => String(t.id) === String(ticketParamId));
+    if (tkt) {
+      ticketParamProcessedRef.current = ticketParamId;
+      handleTicketClick(tkt);
+    } else if (tickets.length > 0) {
+      // Si no está en el listado cargado, intentar traerlo por API
+      ticketParamProcessedRef.current = ticketParamId;
+      api.tickets.getById(ticketParamId).then(({ data: fetchedTicket, error }) => {
+        if (!error && fetchedTicket) {
+          handleTicketClick(fetchedTicket);
+        }
+      });
+    }
+  }, [ticketParamId, tickets, loading, handleTicketClick]);
+
+  // Listener para cerrar modal con tecla Escape
+  useEffect(() => {
+    if (!detalleOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        cerrarDetalle();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [detalleOpen, cerrarDetalle]);
 
   const modalScrollRef = useRef(null);
 
@@ -1789,7 +1851,8 @@ export default function TableroKanban() {
                 usuarios: usuariosParaEmail,
                 ticket: { ...ticketViejo, id, titulo, area, prioridad },
                 autor: user,
-                numeroTicket: numTicket
+                numeroTicket: numTicket,
+                tableroId: tableroId || ticketViejo?.tablero_id || ticketViejo?.tablero
               });
             }
           }
@@ -1869,13 +1932,24 @@ export default function TableroKanban() {
             const numTktStr = numeroTicketCalculado ? `#${numeroTicketCalculado}` : 'Nota';
             const n8nWebhookUrl = import.meta.env.VITE_N8N_WEBHOOK_URL || 'https://n8n.efectohost.com/webhook/crear-ticket';
             if (n8nWebhookUrl) {
+              const baseUrl = (
+                import.meta.env.VITE_APP_URL ||
+                (typeof window !== 'undefined' && window.location?.origin ? window.location.origin : '') ||
+                'http://ticketeradele3.cti.gob.ar'
+              ).replace(/\/+$/, '');
+              const idTableroTicket = tableroId || data?.tablero_id || data?.tablero;
+              const directTicketUrl = idTableroTicket && data?.id
+                ? `${baseUrl}/tablero/${idTableroTicket}?ticket=${data.id}`
+                : `${baseUrl}/`;
+
               const htmlSolicitante = buildSolicitanteHtml({
                 solicitante: data.solicitante || 'Solicitante',
                 numeroTicket: numTktStr,
                 titulo: data.titulo,
                 area: data.area || 'General',
                 seccion_solicitante: data.seccion_solicitante || '',
-                fecha_creacion: formatFecha(data.fecha_creacion)
+                fecha_creacion: formatFecha(data.fecha_creacion),
+                ticketUrl: directTicketUrl
               });
 
               fetch(n8nWebhookUrl, {
@@ -1895,6 +1969,10 @@ export default function TableroKanban() {
                   prioridad: data.prioridad,
                   seccion_solicitante: data.seccion_solicitante || '',
                   fecha_creacion: formatFecha(data.fecha_creacion),
+                  ticket_url: directTicketUrl,
+                  url_ticket: directTicketUrl,
+                  link_ticket: directTicketUrl,
+                  link: directTicketUrl,
                   html: htmlSolicitante
                 })
               }).catch(err => console.error("Error al notificar a n8n:", err));
@@ -1929,7 +2007,8 @@ export default function TableroKanban() {
               usuarios: usuariosAsignadosEmail,
               ticket: data,
               autor: user,
-              numeroTicket: numeroTicketAsignacion || nuevoTicketId
+              numeroTicket: numeroTicketAsignacion || nuevoTicketId,
+              tableroId: tableroId || data?.tablero_id || data?.tablero
             });
           }
         }
@@ -3312,7 +3391,7 @@ export default function TableroKanban() {
       )}
 
       {/* Modal - Vista de Detalle (Glassmorphism) */}
-      <div className={`fixed inset-0 bg-slate-900/40 dark:bg-black/80 backdrop-blur-xs flex items-center justify-center z-50 p-4 transition-opacity duration-200 ease-out ${detalleOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`} onClick={(e) => { if (e.target === e.currentTarget) setDetalleOpen(false) }}>
+      <div className={`fixed inset-0 bg-slate-900/40 dark:bg-black/80 backdrop-blur-xs flex items-center justify-center z-50 p-4 transition-opacity duration-200 ease-out ${detalleOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`} onClick={(e) => { if (e.target === e.currentTarget) cerrarDetalle() }}>
         {ticketActivo && (
           <>
             <div className={`bg-white dark:bg-[var(--bg-secondary)] rounded-[32px] shadow-2xl dark:shadow-none w-full max-w-[1100px] border border-slate-200/80 dark:border-[var(--border-accent)] transform transition-[transform,opacity] duration-200 ease-out will-change-[transform,opacity] h-[90vh] max-h-[90vh] flex flex-col md:flex-row overflow-y-auto md:overflow-hidden ${detalleOpen ? 'scale-100 opacity-100' : 'scale-95 opacity-0'}`}>
@@ -3335,6 +3414,42 @@ export default function TableroKanban() {
                     )}
                   </div>
                   <div className="flex items-center gap-1.5 md:gap-2">
+                    {/* Copiar enlace directo del ticket */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        const baseUrl = window.location.origin.replace(/\/+$/, '');
+                        const idTableroTicket = tableroId || ticketActivo?.tablero_id || ticketActivo?.tablero;
+                        const shareUrl = idTableroTicket
+                          ? `${baseUrl}/tablero/${idTableroTicket}?ticket=${ticketActivo.id}`
+                          : `${baseUrl}/?ticket=${ticketActivo.id}`;
+                        navigator.clipboard.writeText(shareUrl).then(() => {
+                          setEnlaceCopiado(true);
+                          setTimeout(() => setEnlaceCopiado(false), 2000);
+                        }).catch(() => {
+                          prompt("Copiá el enlace del ticket:", shareUrl);
+                        });
+                      }}
+                      className={`p-1.5 md:p-2 rounded-full transition-all border border-transparent flex items-center gap-1.5 ${
+                        enlaceCopiado
+                          ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400 font-medium text-xs px-2.5'
+                          : 'text-slate-400 hover:text-[#00ADC1] dark:hover:text-cyan-400 bg-slate-100/50 dark:bg-[var(--bg-secondary)] hover:bg-cyan-50 dark:hover:bg-slate-700'
+                      }`}
+                      title={enlaceCopiado ? '¡Enlace copiado!' : 'Copiar enlace directo al ticket'}
+                    >
+                      {enlaceCopiado ? (
+                        <>
+                          <svg className="w-4 h-4 text-emerald-600 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                          <span className="text-[11px] font-bold">¡Copiado!</span>
+                        </>
+                      ) : (
+                        <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                        </svg>
+                      )}
+                    </button>
+
                     {/* Editar y Eliminar */}
 
                     <button
@@ -3353,7 +3468,7 @@ export default function TableroKanban() {
                           estado: ticketActivo.estado,
                           responsables: ticketActivo.responsable ? ticketActivo.responsable.split(',').map(r => r.trim()).filter(Boolean) : []
                         });
-                        setDetalleOpen(false); // Cierra la pestaña de detalles
+                        cerrarDetalle(); // Cierra la pestaña de detalles y limpia URL
                         setTimeout(() => setModalOpen(true), 50); // Abre la de edición con un ligero retraso para suavizar la animación
                       }}
                       className="text-slate-400 hover:text-[#065E94] dark:hover:text-blue-400 p-1.5 md:p-2 bg-slate-100/50 dark:bg-[var(--bg-secondary)] rounded-full hover:bg-blue-50 dark:hover:bg-slate-700 transition-colors border border-transparent"
@@ -3368,7 +3483,7 @@ export default function TableroKanban() {
                     >
                       <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                     </button>
-                    <button onClick={() => setDetalleOpen(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 p-1.5 md:p-2 bg-slate-100/50 dark:bg-[var(--bg-secondary)] rounded-full hover:bg-slate-200/50 dark:hover:bg-slate-700 transition-colors border border-transparent" title="Cerrar">
+                    <button onClick={cerrarDetalle} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 p-1.5 md:p-2 bg-slate-100/50 dark:bg-[var(--bg-secondary)] rounded-full hover:bg-slate-200/50 dark:hover:bg-slate-700 transition-colors border border-transparent" title="Cerrar">
                       <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                     </button>
                   </div>
@@ -4106,7 +4221,9 @@ export default function TableroKanban() {
             <div className="p-8 pt-2">
               <div className="space-y-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 dark:text-neutral-400 uppercase tracking-widest mb-2">Mensaje de Resolución</label>
+                  <label className="block text-xs font-bold text-slate-500 dark:text-neutral-400 uppercase tracking-widest mb-2">
+                    {ticketAResolver?.targetState === 'Resuelto' ? 'Mensaje de Resolución' : 'Comentario'}
+                  </label>
                   <textarea
                     autoFocus
                     required
@@ -4142,7 +4259,7 @@ export default function TableroKanban() {
                 onClick={confirmarResolucion}
                 className="px-6 py-2.5 rounded-xl font-bold text-sm text-white bg-[#065E94] hover:bg-[#043d63] hover:shadow-md transition-all focus:outline-none focus:ring-2 focus:ring-[#065E94] focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Confirmar Cierre
+                {ticketAResolver?.targetState === 'Resuelto' ? 'Confirmar Cierre' : 'Confirmar'}
               </button>
             </div>
           </div>

@@ -1,9 +1,10 @@
 import React from 'react';
-import { Navigate, Outlet } from 'react-router-dom';
+import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 export default function RutaProtegida() {
     const { user, loading } = useAuth();
+    const location = useLocation();
 
     if (loading) {
         return (
@@ -13,9 +14,9 @@ export default function RutaProtegida() {
         );
     }
 
-    // Si no hay usuario, mandarlo al login
+    // Si no hay usuario, mandarlo al login recordando la ruta destino
     if (!user) {
-        return <Navigate to="/login" replace />;
+        return <Navigate to="/login" state={{ from: location }} replace />;
     }
 
     // Si hay usuario, mostrar el contenido hijo (las rutas protegidas)

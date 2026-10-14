@@ -26,7 +26,8 @@ export function buildNotificationHtml({
   comentario = '',
   area = '',
   prioridad = '',
-  fecha = ''
+  fecha = '',
+  ticketUrl = ''
 }) {
   const esAsignacion = tipo === 'asignacion';
   const badgeTexto = esAsignacion
@@ -54,6 +55,16 @@ export function buildNotificationHtml({
   ` : '';
 
   const fechaFinal = fecha || formatFechaHora(new Date());
+
+  const badgeHtml = ticketUrl ? `
+    <a href="${escapeHtml(ticketUrl)}" target="_blank" style="font-family:'Courier New',Courier,monospace,sans-serif;font-size:18px;font-weight:bold;color:#ffffff;letter-spacing:1px;text-decoration:none;display:inline-block;">
+      ${escapeHtml(badgeTexto)}
+    </a>
+  ` : `
+    <span style="font-family:'Courier New',Courier,monospace,sans-serif;font-size:18px;font-weight:bold;color:#ffffff;letter-spacing:1px;">
+      ${escapeHtml(badgeTexto)}
+    </span>
+  `;
 
   return `<!DOCTYPE html>
 <html lang="es">
@@ -119,9 +130,7 @@ export function buildNotificationHtml({
                     <table cellpadding="0" cellspacing="0" border="0" align="center">
                       <tr>
                         <td style="background-color:#00ADC1;padding:16px 36px;border-radius:10px;text-align:center;">
-                          <span style="font-family:'Courier New',Courier,monospace,sans-serif;font-size:19px;font-weight:bold;color:#ffffff;letter-spacing:1px;">
-                            ${escapeHtml(badgeTexto)}
-                          </span>
+                          ${badgeHtml}
                         </td>
                       </tr>
                     </table>
@@ -135,12 +144,12 @@ export function buildNotificationHtml({
               <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f1f5f9;border-radius:8px;padding:16px 20px;margin-bottom:20px;">
                 <tr>
                   <td style="font-family:Arial,sans-serif;font-size:14px;color:#334155;padding:4px 0;">
-                    <strong>Número de Ticket:</strong> #${escapeHtml(String(numeroTicket))}
+                    <strong>Número de Ticket:</strong> ${ticketUrl ? `<a href="${escapeHtml(ticketUrl)}" target="_blank" style="color:#00ADC1;font-weight:bold;text-decoration:underline;">#${escapeHtml(String(numeroTicket))}</a>` : `#${escapeHtml(String(numeroTicket))}`}
                   </td>
                 </tr>
                 <tr>
                   <td style="font-family:Arial,sans-serif;font-size:14px;color:#334155;padding:4px 0;">
-                    <strong>Asunto / Título:</strong> ${escapeHtml(titulo || 'Sin título')}
+                    <strong>Asunto / Título:</strong> ${ticketUrl ? `<a href="${escapeHtml(ticketUrl)}" target="_blank" style="color:#0d1b2a;text-decoration:none;font-weight:bold;">${escapeHtml(titulo || 'Sin título')}</a>` : escapeHtml(titulo || 'Sin título')}
                   </td>
                 </tr>
                 ${area ? `
@@ -170,6 +179,35 @@ export function buildNotificationHtml({
                   </td>
                 </tr>
               </table>
+
+              ${ticketUrl ? `
+              <!-- BOTÓN DE ACCESO DIRECTO AL TICKET -->
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:26px 0 22px 0;">
+                <tr>
+                  <td align="center">
+                    <table cellpadding="0" cellspacing="0" border="0" align="center" style="margin:0 auto;">
+                      <tr>
+                        <td align="center" bgcolor="#00ADC1" style="background-color:#00ADC1;border-radius:10px;box-shadow:0 4px 14px rgba(0,173,193,0.35);">
+                          <a href="${escapeHtml(ticketUrl)}" target="_blank" style="display:inline-block;padding:15px 36px;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:bold;color:#ffffff;text-decoration:none;border-radius:10px;letter-spacing:0.5px;text-align:center;">
+                            Ir al ticket #${escapeHtml(String(numeroTicket).replace(/^#/, ''))} &rarr;
+                          </a>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+                <tr>
+                  <td align="center" style="padding-top:12px;">
+                    <span style="font-family:Arial,sans-serif;font-size:12px;color:#64748b;line-height:1.4;">
+                      ¿No podés hacer clic en el botón? Abrí directamente este enlace:<br>
+                      <a href="${escapeHtml(ticketUrl)}" target="_blank" style="color:#00ADC1;text-decoration:underline;word-break:break-all;font-size:12px;font-weight:bold;">
+                        ${escapeHtml(ticketUrl)}
+                      </a>
+                    </span>
+                  </td>
+                </tr>
+              </table>
+              ` : ''}
 
               <!-- AVISO DE SEGUIMIENTO -->
               <table width="100%" cellpadding="0" cellspacing="0" border="0">
@@ -225,7 +263,9 @@ export async function enviarNotificacionEmail({
   ticket, // Objeto ticket ({ id, titulo, area, prioridad, ... })
   autor, // Usuario autor de la acción ({ nombre, ... }) o string
   comentario = '',
-  numeroTicket = null
+  numeroTicket = null,
+  tableroId = null,
+  ticketUrl = null
 }) {
   if (!usuario || !usuario.email || !usuario.email.trim()) {
     console.warn(`[Notificaciones] Usuario sin correo vinculado (id: ${usuario?.id || 'desconocido'}), omitiendo envío.`);
@@ -244,6 +284,29 @@ export async function enviarNotificacionEmail({
 
   const fechaFormateada = formatFechaHora(new Date());
 
+  // Resolver la URL directa al ticket
+  const baseUrl = (
+    import.meta.env.VITE_APP_URL ||
+    (typeof window !== 'undefined' && window.location?.origin ? window.location.origin : '') ||
+    'http://ticketeradele3.cti.gob.ar'
+  ).replace(/\/+$/, '');
+
+  const idTablero = tableroId || ticket?.tablero_id || ticket?.tablero;
+  const idTicket = ticket?.id;
+
+  let finalTicketUrl = ticketUrl;
+  if (!finalTicketUrl) {
+    if (idTablero && idTicket) {
+      finalTicketUrl = `${baseUrl}/tablero/${idTablero}?ticket=${idTicket}`;
+    } else if (idTablero) {
+      finalTicketUrl = `${baseUrl}/tablero/${idTablero}`;
+    } else if (idTicket) {
+      finalTicketUrl = `${baseUrl}/?ticket=${idTicket}`;
+    } else {
+      finalTicketUrl = `${baseUrl}/`;
+    }
+  }
+
   const htmlContent = buildNotificationHtml({
     tipo,
     destinatarioNombre: nombreDestino,
@@ -253,7 +316,8 @@ export async function enviarNotificacionEmail({
     comentario,
     area: ticket?.area || '',
     prioridad: ticket?.prioridad || '',
-    fecha: fechaFormateada
+    fecha: fechaFormateada,
+    ticketUrl: finalTicketUrl
   });
 
   const webhookUrl =
@@ -276,6 +340,10 @@ export async function enviarNotificacionEmail({
     autor: autorNombre,
     comentario: comentario || '',
     fecha: fechaFormateada,
+    ticket_url: finalTicketUrl,
+    url_ticket: finalTicketUrl,
+    link_ticket: finalTicketUrl,
+    link: finalTicketUrl,
     html: htmlContent
   };
 
@@ -305,7 +373,9 @@ export function enviarNotificacionesBatch({
   ticket,
   autor,
   comentario = '',
-  numeroTicket = null
+  numeroTicket = null,
+  tableroId = null,
+  ticketUrl = null
 }) {
   if (!Array.isArray(usuarios) || usuarios.length === 0) return;
 
@@ -327,7 +397,9 @@ export function enviarNotificacionesBatch({
         ticket,
         autor,
         comentario,
-        numeroTicket
+        numeroTicket,
+        tableroId,
+        ticketUrl
       })
     )
   ).catch(err => console.error("[Notificaciones] Error en envío batch:", err));
@@ -343,10 +415,12 @@ export function buildSolicitanteHtml({
   titulo,
   area = '',
   seccion_solicitante = '',
-  fecha_creacion = ''
+  fecha_creacion = '',
+  ticketUrl = ''
 }) {
   const fechaFinal = fecha_creacion || formatFechaHora(new Date());
   const areaTexto = area ? `${escapeHtml(area)}${seccion_solicitante ? ` (${escapeHtml(seccion_solicitante)})` : ''}` : 'General';
+  const cleanTicketNum = String(numeroTicket).replace(/^#/, '');
 
   return `<!DOCTYPE html>
 <html lang="es">
@@ -415,7 +489,15 @@ export function buildSolicitanteHtml({
                     <table cellpadding="0" cellspacing="0" border="0" align="center">
                       <tr>
                         <td style="background-color:#00ADC1;padding:16px 40px;border-radius:10px;text-align:center;">
-                          <span style="font-family:'Courier New',Courier,monospace;font-size:28px;font-weight:bold;color:#ffffff;letter-spacing:2px;">${escapeHtml(String(numeroTicket))}</span>
+                          ${ticketUrl ? `
+                            <a href="${escapeHtml(ticketUrl)}" target="_blank" style="font-family:'Courier New',Courier,monospace;font-size:28px;font-weight:bold;color:#ffffff;letter-spacing:2px;text-decoration:none;display:inline-block;">
+                              ${escapeHtml(String(numeroTicket))}
+                            </a>
+                          ` : `
+                            <span style="font-family:'Courier New',Courier,monospace;font-size:28px;font-weight:bold;color:#ffffff;letter-spacing:2px;">
+                              ${escapeHtml(String(numeroTicket))}
+                            </span>
+                          `}
                         </td>
                       </tr>
                     </table>
@@ -427,7 +509,12 @@ export function buildSolicitanteHtml({
               <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f1f5f9;border-radius:8px;padding:16px 20px;margin-bottom:20px;">
                 <tr>
                   <td style="font-family:Arial,sans-serif;font-size:14px;color:#334155;padding:4px 0;">
-                    <strong>Asunto / Título:</strong> ${escapeHtml(titulo || 'Sin título')}
+                    <strong>Número de Ticket:</strong> ${ticketUrl ? `<a href="${escapeHtml(ticketUrl)}" target="_blank" style="color:#00ADC1;font-weight:bold;text-decoration:underline;">#${escapeHtml(cleanTicketNum)}</a>` : `#${escapeHtml(cleanTicketNum)}`}
+                  </td>
+                </tr>
+                <tr>
+                  <td style="font-family:Arial,sans-serif;font-size:14px;color:#334155;padding:4px 0;">
+                    <strong>Asunto / Título:</strong> ${ticketUrl ? `<a href="${escapeHtml(ticketUrl)}" target="_blank" style="color:#0d1b2a;text-decoration:none;font-weight:bold;">${escapeHtml(titulo || 'Sin título')}</a>` : escapeHtml(titulo || 'Sin título')}
                   </td>
                 </tr>
                 <tr>
@@ -441,6 +528,35 @@ export function buildSolicitanteHtml({
                   </td>
                 </tr>
               </table>
+
+              ${ticketUrl ? `
+              <!-- BOTÓN DE ACCESO DIRECTO AL TICKET -->
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:24px 0 20px 0;">
+                <tr>
+                  <td align="center">
+                    <table cellpadding="0" cellspacing="0" border="0" align="center" style="margin:0 auto;">
+                      <tr>
+                        <td align="center" bgcolor="#00ADC1" style="background-color:#00ADC1;border-radius:10px;box-shadow:0 4px 14px rgba(0,173,193,0.35);">
+                          <a href="${escapeHtml(ticketUrl)}" target="_blank" style="display:inline-block;padding:15px 36px;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:bold;color:#ffffff;text-decoration:none;border-radius:10px;letter-spacing:0.5px;text-align:center;">
+                            Ir al ticket #${escapeHtml(cleanTicketNum)} &rarr;
+                          </a>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+                <tr>
+                  <td align="center" style="padding-top:12px;">
+                    <span style="font-family:Arial,sans-serif;font-size:12px;color:#64748b;line-height:1.4;">
+                      ¿No podés hacer clic en el botón? Abrí directamente este enlace:<br>
+                      <a href="${escapeHtml(ticketUrl)}" target="_blank" style="color:#00ADC1;text-decoration:underline;word-break:break-all;font-size:12px;font-weight:bold;">
+                        ${escapeHtml(ticketUrl)}
+                      </a>
+                    </span>
+                  </td>
+                </tr>
+              </table>
+              ` : ''}
 
               <!-- CANAL DE ATENCIÓN POR WHATSAPP -->
               <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px 20px;margin-bottom:20px;">
